@@ -12,7 +12,6 @@ An AI assistant for Pathfinder 2e campaigns, built as a Chrome Extension and pow
 ## Installation Instructions (Developer Mode)
 
 1. Clone or download this repository to your local machine.
-2. Ensure you have the `rulebook.txt` file (Pathfinder 2e Core Rulebook in plain text) located in the root of the extension folder. (Downloadable from archive.org).
 3. Open Google Chrome and navigate to `chrome://extensions/`.
 4. Toggle **Developer mode** on in the top right corner.
 5. Click **Load unpacked** in the top left corner.
