@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=IM+Fell+DW+Pica:ital@0;1&display=swap');
+
 :root {
   --bg-color: #1e1e1e;
   --panel-bg: #252526;
@@ -22,7 +24,9 @@ body.light-mode {
 body {
   margin: 0;
   padding: 0;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-family: 'IM Fell DW Pica', serif;
+  font-size: 115%;
+  letter-spacing: 0.05em;
   background-color: var(--bg-color);
   color: var(--text-main);
   height: 100vh;
@@ -57,7 +61,7 @@ label {
   font-weight: bold;
 }
 
-input, textarea {
+input, textarea, select {
   width: 100%;
   background: var(--panel-bg);
   border: 1px solid var(--border-color);
@@ -65,6 +69,7 @@ input, textarea {
   padding: 8px;
   border-radius: 4px;
   box-sizing: border-box;
+  font-family: inherit;
 }
 
 textarea {
@@ -81,6 +86,7 @@ button {
   cursor: pointer;
   font-weight: bold;
   transition: background-color 0.2s;
+  font-family: inherit;
 }
 
 button:hover {
@@ -124,6 +130,7 @@ button:hover {
   word-break: break-word;
   white-space: pre-wrap;
   overflow-wrap: break-word;
+  font-size: 13px;
 }
 
 .message.user {

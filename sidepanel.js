@@ -1,4 +1,6 @@
 document.addEventListener('DOMContentLoaded', async () => {
+  console.log("%cThanks for running a killer game, Augie!", "color: #007acc; font-weight: bold; font-size: 16px; font-family: sans-serif;");
+  
   const settingsView = document.getElementById('settings-view');
   const chatView = document.getElementById('chat-view');
   
@@ -100,10 +102,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   const tokenMeterText = document.getElementById('token-meter-text');
 
   const CONTEXT_SOURCES = [
-    { id: "core", label: "Core Rules" },
-    { id: "apg", label: "Adv. Player's Guide" },
+    { id: "core", label: "Core" },
+    { id: "apg", label: "APG" },
     { id: "gm_core", label: "GM Core" },
-    { id: "campaign", label: "Campaign Notes" }
+    { id: "campaign", label: "Notes" }
   ];
 
   let rulebookText = "";
@@ -420,7 +422,8 @@ Output a JSON array of required sources from this list:
 - "campaign": For campaign notes, character sheets, current story, etc.
 Example: ["core", "campaign"]`;
 
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${apiKey}`, {
+    let model = 'gemini-3.6-flash';
+    let res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -428,7 +431,8 @@ Example: ["core", "campaign"]`;
         generationConfig: { responseMimeType: "application/json" }
       })
     });
-    const json = await res.json();
+    let json = await res.json();
+    
     if (json.error) throw new Error("Router error: " + json.error.message);
     try {
       return JSON.parse(json.candidates[0].content.parts[0].text);
