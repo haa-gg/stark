@@ -1,0 +1,30 @@
+{
+  "manifest_version": 3,
+  "name": "Stark - Pathfinder 2e AI",
+  "version": "1.0",
+  "description": "Your AI assistant for Pathfinder 2e.",
+  "permissions": [
+    "sidePanel",
+    "storage"
+  ],
+  "host_permissions": [
+    "https://*.pathbuilder2e.com/*",
+    "https://*.google.com/*",
+    "https://generativelanguage.googleapis.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "Open Stark AI"
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": [ "rulebook.txt" ],
+      "matches": [ "<all_urls>" ]
+    }
+  ]
+}
