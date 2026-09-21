@@ -10,6 +10,15 @@
   --meter-danger: #dc3545;
 }
 
+body.light-mode {
+  --bg-color: #f5f5f5;
+  --panel-bg: #ffffff;
+  --text-main: #333333;
+  --accent-gold: #007acc;
+  --accent-hover: #005f9e;
+  --border-color: #cccccc;
+}
+
 body {
   margin: 0;
   padding: 0;

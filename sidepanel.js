@@ -2,6 +2,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   const settingsView = document.getElementById('settings-view');
   const chatView = document.getElementById('chat-view');
   
+  const closeSettingsBtn = document.getElementById('close-settings');
+  const themeToggle = document.getElementById('theme-toggle');
+
   const apiKeyInput = document.getElementById('api-key');
   const toggleApiKeyBtn = document.getElementById('toggle-api-key');
   const notesUrlInput = document.getElementById('notes-url');
@@ -19,23 +22,33 @@ document.addEventListener('DOMContentLoaded', async () => {
   const tokenMeterText = document.getElementById('token-meter-text');
 
   let rulebookText = "";
-  
-  // Conversational Memory Window (Max 4 messages)
   let conversationHistory = [];
-  
-  // Cache for contexts
   let cachedNotesText = "No campaign notes provided.";
   let cachedCharactersText = "No character sheets provided.";
   let lastSynced = 0;
   
-  // Load rulebook from extension package
   fetch(chrome.runtime.getURL('rulebook.txt'))
     .then(res => res.text())
     .then(text => { rulebookText = text; })
     .catch(err => console.error("Failed to load rulebook", err));
 
-  // Load Settings
-  const data = await chrome.storage.local.get(['apiKey', 'notesUrl', 'pbUrls']);
+  const data = await chrome.storage.local.get(['apiKey', 'notesUrl', 'pbUrls', 'lightMode']);
+  
+  // Apply theme
+  if (data.lightMode) {
+    document.body.classList.add('light-mode');
+    themeToggle.checked = true;
+  }
+
+  themeToggle.addEventListener('change', (e) => {
+    if (e.target.checked) {
+      document.body.classList.add('light-mode');
+    } else {
+      document.body.classList.remove('light-mode');
+    }
+    chrome.storage.local.set({ lightMode: e.target.checked });
+  });
+
   if (data.apiKey) {
     apiKeyInput.value = data.apiKey;
     notesUrlInput.value = data.notesUrl || '';
@@ -44,7 +57,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     chatView.classList.remove('hidden');
   }
 
-  // Toggle API Key visibility
   if (toggleApiKeyBtn) {
     toggleApiKeyBtn.addEventListener('click', () => {
       if (apiKeyInput.type === 'password') {
@@ -63,7 +75,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       notesUrl: notesUrlInput.value.trim(),
       pbUrls: pbUrlsInput.value.trim()
     }, () => {
-      lastSynced = 0; // force sync on next run
+      lastSynced = 0; 
       settingsView.classList.add('hidden');
       chatView.classList.remove('hidden');
     });
@@ -72,6 +84,17 @@ document.addEventListener('DOMContentLoaded', async () => {
   openSettingsBtn.addEventListener('click', () => {
     chatView.classList.add('hidden');
     settingsView.classList.remove('hidden');
+  });
+
+  closeSettingsBtn.addEventListener('click', () => {
+    chrome.storage.local.get(['apiKey'], (res) => {
+      if (res.apiKey) {
+        settingsView.classList.add('hidden');
+        chatView.classList.remove('hidden');
+      } else {
+        alert("Please enter a Gemini API Key to continue.");
+      }
+    });
   });
   
   syncBtn.addEventListener('click', async () => {
@@ -84,7 +107,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   async function fetchContexts() {
     const now = Date.now();
-    // 10 minute cache = 600,000 ms
     if (now - lastSynced < 600000) {
       return { notesText: cachedNotesText, charactersText: cachedCharactersText };
     }
@@ -196,10 +218,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     addMessage('user', text);
     chatInput.value = '';
     
-    // Add to conversational memory
     conversationHistory.push({ role: 'user', parts: [{ text }] });
     if (conversationHistory.length > 4) {
-      conversationHistory.shift(); // Keep only last 4 messages
+      conversationHistory.shift(); 
     }
     
     const loadingDiv = document.createElement('div');
@@ -270,14 +291,12 @@ ${relevantRules}
 
       const answer = json.candidates[0].content.parts[0].text;
       
-      // Extract Token Usage
       if (json.usageMetadata && json.usageMetadata.totalTokenCount) {
         updateTokenMeter(json.usageMetadata.totalTokenCount);
       }
       
       loadingDiv.textContent = answer;
       
-      // Save AI answer to conversational memory
       conversationHistory.push({ role: 'model', parts: [{ text: answer }] });
       if (conversationHistory.length > 4) {
         conversationHistory.shift();
@@ -286,7 +305,6 @@ ${relevantRules}
     } catch (e) {
       console.error(e);
       loadingDiv.textContent = "Error: " + e.message;
-      // Remove the failed user message from history
       conversationHistory.pop();
     } finally {
       chatInput.disabled = false;

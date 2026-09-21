@@ -7,7 +7,16 @@
 </head>
 <body>
   <div id="settings-view">
-    <h2>Stark Configuration</h2>
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+      <h2 style="margin: 0;">Stark Configuration</h2>
+      <button id="close-settings" title="Close Settings" style="background: transparent; color: var(--text-main); font-size: 20px; padding: 0;">✖</button>
+    </div>
+    
+    <div class="input-group" style="display: flex; justify-content: space-between; align-items: center; background: var(--panel-bg); padding: 10px; border-radius: 4px; border: 1px solid var(--border-color);">
+      <label style="margin: 0; cursor: pointer;" for="theme-toggle">Light Mode</label>
+      <input type="checkbox" id="theme-toggle" style="width: auto; cursor: pointer;">
+    </div>
+
     <div class="input-group">
       <label>Gemini API Key</label>
       <div style="display: flex; gap: 5px; margin-bottom: 5px;">
