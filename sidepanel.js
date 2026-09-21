@@ -9,12 +9,24 @@ document.addEventListener('DOMContentLoaded', async () => {
   const saveBtn = document.getElementById('save-settings');
   
   const openSettingsBtn = document.getElementById('open-settings');
+  const syncBtn = document.getElementById('sync-btn');
   
   const chatMessages = document.getElementById('chat-messages');
   const chatInput = document.getElementById('chat-input');
   const sendBtn = document.getElementById('send-btn');
+  
+  const tokenMeterBar = document.getElementById('token-meter-bar');
+  const tokenMeterText = document.getElementById('token-meter-text');
 
   let rulebookText = "";
+  
+  // Conversational Memory Window (Max 4 messages)
+  let conversationHistory = [];
+  
+  // Cache for contexts
+  let cachedNotesText = "No campaign notes provided.";
+  let cachedCharactersText = "No character sheets provided.";
+  let lastSynced = 0;
   
   // Load rulebook from extension package
   fetch(chrome.runtime.getURL('rulebook.txt'))
@@ -51,6 +63,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       notesUrl: notesUrlInput.value.trim(),
       pbUrls: pbUrlsInput.value.trim()
     }, () => {
+      lastSynced = 0; // force sync on next run
       settingsView.classList.add('hidden');
       chatView.classList.remove('hidden');
     });
@@ -60,11 +73,25 @@ document.addEventListener('DOMContentLoaded', async () => {
     chatView.classList.add('hidden');
     settingsView.classList.remove('hidden');
   });
+  
+  syncBtn.addEventListener('click', async () => {
+    lastSynced = 0;
+    const origText = syncBtn.textContent;
+    syncBtn.textContent = '...';
+    await fetchContexts();
+    syncBtn.textContent = origText;
+  });
 
   async function fetchContexts() {
+    const now = Date.now();
+    // 10 minute cache = 600,000 ms
+    if (now - lastSynced < 600000) {
+      return { notesText: cachedNotesText, charactersText: cachedCharactersText };
+    }
+
     const data = await chrome.storage.local.get(['notesUrl', 'pbUrls']);
-    let notesText = "No campaign notes provided.";
-    let charactersText = "No character sheets provided.";
+    let tempNotes = "No campaign notes provided.";
+    let tempChars = "No character sheets provided.";
 
     if (data.notesUrl) {
       try {
@@ -78,13 +105,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (text.trim().startsWith('<!DOCTYPE html>') || text.includes('<script')) {
           const parser = new DOMParser();
           const doc = parser.parseFromString(text, 'text/html');
-          notesText = doc.body.innerText || doc.body.textContent;
+          tempNotes = doc.body.innerText || doc.body.textContent;
         } else {
-          notesText = text; 
+          tempNotes = text; 
         }
       } catch(e) {
         console.error("Error fetching notes", e);
-        notesText = "Failed to load campaign notes.";
+        tempNotes = "Failed to load campaign notes.";
       }
     }
 
@@ -100,10 +127,14 @@ document.addEventListener('DOMContentLoaded', async () => {
           console.error("Error fetching pathbuilder json for " + url, e);
         }
       }
-      if (chars.length > 0) charactersText = chars.join('\n\n---\n\n');
+      if (chars.length > 0) tempChars = chars.join('\n\n---\n\n');
     }
 
-    return { notesText, charactersText };
+    cachedNotesText = tempNotes;
+    cachedCharactersText = tempChars;
+    lastSynced = Date.now();
+
+    return { notesText: cachedNotesText, charactersText: cachedCharactersText };
   }
 
   function getRelevantChunks(text, query, maxChars = 20000) {
@@ -139,6 +170,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     chatMessages.appendChild(div);
     chatMessages.scrollTop = chatMessages.scrollHeight;
   }
+  
+  function updateTokenMeter(tokensUsed) {
+    const maxTokens = 250000;
+    const percentage = Math.min(100, (tokensUsed / maxTokens) * 100);
+    tokenMeterBar.style.width = percentage + '%';
+    tokenMeterText.textContent = `Tokens: ${tokensUsed.toLocaleString()} / 250,000`;
+    
+    if (percentage > 90) {
+      tokenMeterBar.style.backgroundColor = 'var(--meter-danger)';
+    } else if (percentage > 70) {
+      tokenMeterBar.style.backgroundColor = 'var(--meter-warn)';
+    } else {
+      tokenMeterBar.style.backgroundColor = 'var(--meter-safe)';
+    }
+  }
 
   async function handleSend() {
     const text = chatInput.value.trim();
@@ -149,6 +195,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     addMessage('user', text);
     chatInput.value = '';
+    
+    // Add to conversational memory
+    conversationHistory.push({ role: 'user', parts: [{ text }] });
+    if (conversationHistory.length > 4) {
+      conversationHistory.shift(); // Keep only last 4 messages
+    }
     
     const loadingDiv = document.createElement('div');
     loadingDiv.className = 'message ai';
@@ -185,7 +237,7 @@ ${relevantRules}
 
       const reqBody = {
         system_instruction: { parts: { text: systemInstruction } },
-        contents: [{ role: 'user', parts: [{ text }] }]
+        contents: conversationHistory
       };
 
       loadingDiv.textContent = 'Thinking... (calling Gemini)';
@@ -208,19 +260,34 @@ ${relevantRules}
           if (retries === 0) throw new Error("Google API is experiencing high demand and failed after 5 retries. Please try again later.");
           loadingDiv.textContent = `High demand on Google's servers. Retrying in ${delay / 1000}s...`;
           await new Promise(r => setTimeout(r, delay));
-          delay *= 2; // Exponential backoff: 2s, 4s, 8s, 16s
+          delay *= 2; 
         } else if (json.error) {
           throw new Error(json.error.message);
         } else {
-          break; // Success
+          break; 
         }
       }
 
       const answer = json.candidates[0].content.parts[0].text;
+      
+      // Extract Token Usage
+      if (json.usageMetadata && json.usageMetadata.totalTokenCount) {
+        updateTokenMeter(json.usageMetadata.totalTokenCount);
+      }
+      
       loadingDiv.textContent = answer;
+      
+      // Save AI answer to conversational memory
+      conversationHistory.push({ role: 'model', parts: [{ text: answer }] });
+      if (conversationHistory.length > 4) {
+        conversationHistory.shift();
+      }
+      
     } catch (e) {
       console.error(e);
       loadingDiv.textContent = "Error: " + e.message;
+      // Remove the failed user message from history
+      conversationHistory.pop();
     } finally {
       chatInput.disabled = false;
       sendBtn.disabled = false;

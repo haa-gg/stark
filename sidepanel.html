@@ -30,12 +30,19 @@
   <div id="chat-view" class="hidden">
     <div class="chat-header">
       <h2>Stark AI</h2>
-      <button id="open-settings">⚙</button>
+      <div>
+        <button id="sync-btn" title="Force Sync Data">↻</button>
+        <button id="open-settings" title="Settings">⚙</button>
+      </div>
     </div>
     <div id="chat-messages"></div>
     <div class="chat-input-area">
       <textarea id="chat-input" placeholder="Ask about rules, campaign, or your characters..."></textarea>
       <button id="send-btn">Send</button>
+    </div>
+    <div id="token-meter-container">
+      <div id="token-meter-bar"></div>
+      <span id="token-meter-text">Tokens: 0 / 250,000</span>
     </div>
   </div>
 

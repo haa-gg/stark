@@ -5,6 +5,9 @@
   --accent-gold: #007acc;
   --accent-hover: #005f9e;
   --border-color: #3c3c3c;
+  --meter-safe: #28a745;
+  --meter-warn: #ffc107;
+  --meter-danger: #dc3545;
 }
 
 body {
@@ -62,7 +65,7 @@ textarea {
 
 button {
   background-color: var(--accent-gold);
-  color: #000;
+  color: #fff;
   border: none;
   padding: 10px 15px;
   border-radius: 4px;
@@ -91,7 +94,8 @@ button:hover {
 .chat-header button {
   background: transparent;
   font-size: 20px;
-  padding: 0;
+  padding: 0 5px;
+  color: var(--text-main);
 }
 
 #chat-messages {
@@ -127,10 +131,42 @@ button:hover {
 .chat-input-area {
   display: flex;
   gap: 10px;
+  margin-bottom: 10px;
 }
 
 #chat-input {
   flex-grow: 1;
   height: 40px;
   resize: none;
+}
+
+#token-meter-container {
+  width: 100%;
+  background-color: var(--border-color);
+  border-radius: 4px;
+  height: 16px;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#token-meter-bar {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  width: 0%;
+  background-color: var(--meter-safe);
+  transition: width 0.3s, background-color 0.3s;
+}
+
+#token-meter-text {
+  position: relative;
+  z-index: 1;
+  font-size: 10px;
+  font-weight: bold;
+  color: #fff;
+  text-shadow: 1px 1px 2px #000;
 }
