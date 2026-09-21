@@ -10,7 +10,10 @@
     <h2>Stark Configuration</h2>
     <div class="input-group">
       <label>Gemini API Key</label>
-      <input type="password" id="api-key" placeholder="AIzaSy...">
+      <div style="display: flex; gap: 5px;">
+        <input type="password" id="api-key" placeholder="AIzaSy..." style="flex-grow: 1;">
+        <button id="toggle-api-key" style="padding: 5px 10px; font-size: 14px;" title="Toggle Visibility">👁</button>
+      </div>
     </div>
     <div class="input-group">
       <label>Campaign Notes (Google Doc URL)</label>
@@ -27,7 +30,7 @@
   <div id="chat-view" class="hidden">
     <div class="chat-header">
       <h2>Stark AI</h2>
-      <button id="open-settings">⚙️</button>
+      <button id="open-settings">⚙</button>
     </div>
     <div id="chat-messages"></div>
     <div class="chat-input-area">

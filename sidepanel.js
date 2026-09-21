@@ -3,6 +3,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const chatView = document.getElementById('chat-view');
   
   const apiKeyInput = document.getElementById('api-key');
+  const toggleApiKeyBtn = document.getElementById('toggle-api-key');
   const notesUrlInput = document.getElementById('notes-url');
   const pbUrlsInput = document.getElementById('pb-urls');
   const saveBtn = document.getElementById('save-settings');
@@ -31,6 +32,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     chatView.classList.remove('hidden');
   }
 
+  // Toggle API Key visibility
+  if (toggleApiKeyBtn) {
+    toggleApiKeyBtn.addEventListener('click', () => {
+      if (apiKeyInput.type === 'password') {
+        apiKeyInput.type = 'text';
+        toggleApiKeyBtn.textContent = '🙈';
+      } else {
+        apiKeyInput.type = 'password';
+        toggleApiKeyBtn.textContent = '👁';
+      }
+    });
+  }
+
   saveBtn.addEventListener('click', () => {
     chrome.storage.local.set({
       apiKey: apiKeyInput.value.trim(),
@@ -55,23 +69,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (data.notesUrl) {
       try {
         let fetchUrl = data.notesUrl;
-        
-        // Auto-convert standard Google Doc URL to a plain-text export URL
         const docIdMatch = data.notesUrl.match(/\/document\/d\/([a-zA-Z0-9-_]+)/);
         if (docIdMatch && docIdMatch[1]) {
           fetchUrl = `https://docs.google.com/document/d/${docIdMatch[1]}/export?format=txt`;
         }
-
         const res = await fetch(fetchUrl);
         const text = await res.text();
-        
-        // If it returned HTML (like a login wall or script shell), try to parse the text out of it
         if (text.trim().startsWith('<!DOCTYPE html>') || text.includes('<script')) {
           const parser = new DOMParser();
           const doc = parser.parseFromString(text, 'text/html');
           notesText = doc.body.innerText || doc.body.textContent;
         } else {
-          notesText = text; // Successfully grabbed raw text!
+          notesText = text; 
         }
       } catch(e) {
         console.error("Error fetching notes", e);
@@ -97,16 +106,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     return { notesText, charactersText };
   }
 
-  // --- LOCAL RAG / KEYWORD SEARCH FUNCTION ---
   function getRelevantChunks(text, query, maxChars = 20000) {
     const stopWords = new Set(["the","a","an","and","or","but","in","on","at","to","for","of","with","is","are","was","were","it","this","that","what","how","why","who","when","where","do","does","did","can","could","would","should","my","your","his","her","our","their"]);
     const words = query.toLowerCase().match(/\b\w+\b/g) || [];
     const keywords = words.filter(w => !stopWords.has(w) && w.length > 2);
-    
     if (keywords.length === 0) return text.substring(0, maxChars);
-    
     const chunks = text.split(/\n\s*\n/);
-    
     const scoredChunks = chunks.map(chunk => {
       const lower = chunk.toLowerCase();
       let score = 0;
@@ -116,16 +121,13 @@ document.addEventListener('DOMContentLoaded', async () => {
       });
       return { chunk, score };
     });
-
     scoredChunks.sort((a, b) => b.score - a.score);
-
     let result = "";
     for (const sc of scoredChunks) {
       if (sc.score === 0 && result.length > 0) continue; 
       if (result.length + sc.chunk.length > maxChars) break;
       result += sc.chunk + "\n\n";
     }
-    
     if (!result.trim()) return text.substring(0, maxChars);
     return result;
   }
@@ -164,9 +166,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     try {
       loadingDiv.textContent = 'Thinking... (running local search over rulebook)';
-      
       const { notesText, charactersText } = await fetchContexts();
-      
       const relevantRules = getRelevantChunks(rulebookText, text, 15000);
       
       const systemInstruction = `You are Stark, an AI assistant for a Pathfinder 2e campaign. 
@@ -190,15 +190,30 @@ ${relevantRules}
 
       loadingDiv.textContent = 'Thinking... (calling Gemini)';
 
-      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${data.apiKey}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(reqBody)
-      });
+      let json;
+      let delay = 2000;
+      let retries = 5;
 
-      const json = await res.json();
-      if (json.error) {
-        throw new Error(json.error.message);
+      while (retries > 0) {
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${data.apiKey}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(reqBody)
+        });
+
+        json = await res.json();
+        
+        if (json.error && json.error.code === 503) {
+          retries--;
+          if (retries === 0) throw new Error("Google API is experiencing high demand and failed after 5 retries. Please try again later.");
+          loadingDiv.textContent = `High demand on Google's servers. Retrying in ${delay / 1000}s...`;
+          await new Promise(r => setTimeout(r, delay));
+          delay *= 2; // Exponential backoff: 2s, 4s, 8s, 16s
+        } else if (json.error) {
+          throw new Error(json.error.message);
+        } else {
+          break; // Success
+        }
       }
 
       const answer = json.candidates[0].content.parts[0].text;
