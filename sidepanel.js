@@ -10,9 +10,87 @@ document.addEventListener('DOMContentLoaded', async () => {
   const notesUrlInput = document.getElementById('notes-url');
   const pbUrlsInput = document.getElementById('pb-urls');
   const saveBtn = document.getElementById('save-settings');
+  const connectGoogleBtn = document.getElementById('connect-google-btn');
+  const disconnectGoogleBtn = document.getElementById('disconnect-google-btn');
+  const googleAuthStatus = document.getElementById('google-auth-status');
+
+  // --- Google OAuth (launchWebAuthFlow) ---
+  const GOOGLE_CLIENT_ID = '515316118504-qv16sobfp87betbblf6pt3cq007g0ei2.apps.googleusercontent.com';
+  const GOOGLE_SCOPES = 'https://www.googleapis.com/auth/documents.readonly';
+
+  function updateAuthUI(isConnected) {
+    connectGoogleBtn.style.display = isConnected ? 'none' : 'inline-block';
+    googleAuthStatus.style.display = isConnected ? 'inline' : 'none';
+    disconnectGoogleBtn.style.display = isConnected ? 'inline-block' : 'none';
+  }
+
+  async function getStoredToken() {
+    const s = await chrome.storage.local.get(['googleToken', 'googleTokenExpiry']);
+    if (s.googleToken && s.googleTokenExpiry && Date.now() < s.googleTokenExpiry) {
+      return s.googleToken;
+    }
+    return null;
+  }
+
+  async function connectGoogle() {
+    const redirectUri = chrome.identity.getRedirectURL();
+    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth` +
+      `?client_id=${encodeURIComponent(GOOGLE_CLIENT_ID)}` +
+      `&redirect_uri=${encodeURIComponent(redirectUri)}` +
+      `&response_type=token` +
+      `&scope=${encodeURIComponent(GOOGLE_SCOPES)}` +
+      `&prompt=consent`;
+
+    return new Promise((resolve, reject) => {
+      chrome.identity.launchWebAuthFlow({ url: authUrl, interactive: true }, (redirectUrl) => {
+        if (chrome.runtime.lastError || !redirectUrl) {
+          reject(new Error(chrome.runtime.lastError?.message || 'Auth cancelled'));
+          return;
+        }
+        const params = new URLSearchParams(new URL(redirectUrl).hash.substring(1));
+        const token = params.get('access_token');
+        const expiresIn = parseInt(params.get('expires_in') || '3600');
+        if (!token) { reject(new Error('No access token received')); return; }
+        // Cache token, expire 60s early to avoid edge cases
+        chrome.storage.local.set({
+          googleToken: token,
+          googleTokenExpiry: Date.now() + (expiresIn - 60) * 1000
+        });
+        resolve(token);
+      });
+    });
+  }
+
+  connectGoogleBtn.addEventListener('click', async () => {
+    connectGoogleBtn.textContent = 'Connecting...';
+    connectGoogleBtn.disabled = true;
+    try {
+      await connectGoogle();
+      updateAuthUI(true);
+      lastSynced = 0; // force re-sync with new token
+    } catch (e) {
+      console.error('Google auth error:', e);
+      alert('Google sign-in failed: ' + e.message);
+    } finally {
+      connectGoogleBtn.textContent = '🔗 Connect Google Account';
+      connectGoogleBtn.disabled = false;
+    }
+  });
+
+  disconnectGoogleBtn.addEventListener('click', () => {
+    chrome.storage.local.remove(['googleToken', 'googleTokenExpiry']);
+    updateAuthUI(false);
+    lastSynced = 0;
+  });
+  // --- End OAuth ---
   
   const openSettingsBtn = document.getElementById('open-settings');
   const syncBtn = document.getElementById('sync-btn');
+  const closePanelBtn = document.getElementById('close-panel');
+  
+  if (closePanelBtn) {
+    closePanelBtn.addEventListener('click', () => window.close());
+  }
   
   const chatMessages = document.getElementById('chat-messages');
   const chatInput = document.getElementById('chat-input');
@@ -21,7 +99,16 @@ document.addEventListener('DOMContentLoaded', async () => {
   const tokenMeterBar = document.getElementById('token-meter-bar');
   const tokenMeterText = document.getElementById('token-meter-text');
 
+  const CONTEXT_SOURCES = [
+    { id: "core", label: "Core Rules" },
+    { id: "apg", label: "Adv. Player's Guide" },
+    { id: "gm_core", label: "GM Core" },
+    { id: "campaign", label: "Campaign Notes" }
+  ];
+
   let rulebookText = "";
+  let apgText = "";
+  let gmCoreText = "";
   let conversationHistory = [];
   let cachedNotesText = "No campaign notes provided.";
   let cachedCharactersText = "No character sheets provided.";
@@ -32,7 +119,38 @@ document.addEventListener('DOMContentLoaded', async () => {
     .then(text => { rulebookText = text; })
     .catch(err => console.error("Failed to load rulebook", err));
 
-  const data = await chrome.storage.local.get(['apiKey', 'notesUrl', 'pbUrls', 'lightMode']);
+  fetch(chrome.runtime.getURL('advanced_players_guide.txt'))
+    .then(res => res.text())
+    .then(text => { apgText = text; })
+    .catch(err => console.error("Failed to load apg", err));
+
+  fetch(chrome.runtime.getURL('gm_core.txt'))
+    .then(res => res.text())
+    .then(text => { gmCoreText = text; })
+    .catch(err => console.error("Failed to load gm core", err));
+
+  const data = await chrome.storage.local.get(['apiKey', 'notesUrl', 'pbUrls', 'lightMode', 'routingMode']);
+  const routingModeSelect = document.getElementById('routing-mode');
+  const manualRoutingOptions = document.getElementById('manual-routing-options');
+  
+  // Build manual checkboxes
+  CONTEXT_SOURCES.forEach(source => {
+    const label = document.createElement('label');
+    label.style.display = 'flex';
+    label.style.alignItems = 'center';
+    label.style.gap = '4px';
+    label.style.cursor = 'pointer';
+    
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.value = source.id;
+    checkbox.checked = true; // default all checked
+    checkbox.className = 'manual-source-cb';
+    
+    label.appendChild(checkbox);
+    label.appendChild(document.createTextNode(source.label));
+    manualRoutingOptions.appendChild(label);
+  });
   
   // Apply theme
   if (data.lightMode) {
@@ -49,13 +167,32 @@ document.addEventListener('DOMContentLoaded', async () => {
     chrome.storage.local.set({ lightMode: e.target.checked });
   });
 
+  if (data.routingMode) {
+    routingModeSelect.value = data.routingMode;
+  } else {
+    routingModeSelect.value = "smart"; // default
+  }
+
+  function applyRoutingUI() {
+    if (routingModeSelect.value === 'manual') {
+      manualRoutingOptions.style.display = 'flex';
+    } else {
+      manualRoutingOptions.style.display = 'none';
+    }
+  }
+
   if (data.apiKey) {
     apiKeyInput.value = data.apiKey;
     notesUrlInput.value = data.notesUrl || '';
     pbUrlsInput.value = data.pbUrls || '';
     settingsView.classList.add('hidden');
     chatView.classList.remove('hidden');
+    applyRoutingUI();
   }
+
+  // Restore auth UI state
+  const storedToken = await getStoredToken();
+  updateAuthUI(!!storedToken);
 
   if (toggleApiKeyBtn) {
     toggleApiKeyBtn.addEventListener('click', () => {
@@ -73,11 +210,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     chrome.storage.local.set({
       apiKey: apiKeyInput.value.trim(),
       notesUrl: notesUrlInput.value.trim(),
-      pbUrls: pbUrlsInput.value.trim()
+      pbUrls: pbUrlsInput.value.trim(),
+      routingMode: routingModeSelect.value
     }, () => {
-      lastSynced = 0; 
+      lastSynced = 0;
       settingsView.classList.add('hidden');
       chatView.classList.remove('hidden');
+      applyRoutingUI();
     });
   });
 
@@ -105,6 +244,42 @@ document.addEventListener('DOMContentLoaded', async () => {
     syncBtn.textContent = origText;
   });
 
+  // Recursively extracts plain text from a Google Docs body content array.
+  function extractTextFromContent(content) {
+    if (!content) return '';
+    let text = '';
+    for (const el of content) {
+      if (el.paragraph) {
+        for (const item of el.paragraph.elements || []) {
+          if (item.textRun?.content) text += item.textRun.content;
+        }
+      } else if (el.table) {
+        for (const row of el.table.tableRows || []) {
+          for (const cell of row.tableCells || []) {
+            text += extractTextFromContent(cell.content);
+          }
+        }
+      } else if (el.tableOfContents) {
+        text += extractTextFromContent(el.tableOfContents.content);
+      }
+    }
+    return text;
+  }
+
+  // Recursively walks all tabs (including nested child tabs) and extracts text.
+  function extractTextFromTabs(tabs) {
+    if (!tabs) return '';
+    let text = '';
+    for (const tab of tabs) {
+      const title = tab.tabProperties?.title || 'Untitled Tab';
+      const body = tab.documentTab?.body?.content;
+      const tabText = extractTextFromContent(body);
+      if (tabText.trim()) text += `\n\n=== ${title} ===\n\n${tabText}`;
+      if (tab.childTabs?.length) text += extractTextFromTabs(tab.childTabs);
+    }
+    return text;
+  }
+
   async function fetchContexts() {
     const now = Date.now();
     if (now - lastSynced < 600000) {
@@ -117,23 +292,49 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     if (data.notesUrl) {
       try {
-        let fetchUrl = data.notesUrl;
         const docIdMatch = data.notesUrl.match(/\/document\/d\/([a-zA-Z0-9-_]+)/);
-        if (docIdMatch && docIdMatch[1]) {
-          fetchUrl = `https://docs.google.com/document/d/${docIdMatch[1]}/export?format=txt`;
-        }
-        const res = await fetch(fetchUrl);
-        const text = await res.text();
-        if (text.trim().startsWith('<!DOCTYPE html>') || text.includes('<script')) {
-          const parser = new DOMParser();
-          const doc = parser.parseFromString(text, 'text/html');
-          tempNotes = doc.body.innerText || doc.body.textContent;
-        } else {
-          tempNotes = text; 
+        if (docIdMatch?.[1]) {
+          const docId = docIdMatch[1];
+          const token = await getStoredToken();
+
+          if (token) {
+            // --- Authenticated: use Google Docs API to fetch all tabs ---
+            const res = await fetch(
+              `https://docs.googleapis.com/v1/documents/${docId}?includeTabsContent=true`,
+              { headers: { 'Authorization': `Bearer ${token}` } }
+            );
+            if (res.status === 401) {
+              // Token expired — clear it and fall through to unauthenticated fetch
+              chrome.storage.local.remove(['googleToken', 'googleTokenExpiry']);
+              updateAuthUI(false);
+              throw new Error('Google token expired. Please reconnect in settings.');
+            }
+            if (!res.ok) throw new Error(`Docs API error ${res.status}`);
+            const doc = await res.json();
+            // DEBUG: log response shape
+            console.log('[Stark debug] doc keys:', Object.keys(doc));
+            console.log('[Stark debug] tabs count:', doc.tabs?.length);
+            if (doc.tabs?.[0]) {
+              const t0 = doc.tabs[0];
+              console.log('[Stark debug] tab[0] title:', t0.tabProperties?.title);
+              console.log('[Stark debug] tab[0] has documentTab:', !!t0.documentTab);
+              console.log('[Stark debug] tab[0] body content length:', t0.documentTab?.body?.content?.length);
+            }
+            const extracted = extractTextFromTabs(doc.tabs);
+            console.log('[Stark debug] extracted text length:', extracted.length);
+            tempNotes = extracted.trim() || 'No content found.';
+          } else {
+            // --- Unauthenticated fallback: single-tab export ---
+            const res = await fetch(
+              `https://docs.google.com/document/d/${docId}/export?format=txt`
+            );
+            const text = await res.text();
+            tempNotes = text.trim().startsWith('<!DOCTYPE') ? 'Could not read doc. Connect your Google Account for full access.' : text;
+          }
         }
       } catch(e) {
-        console.error("Error fetching notes", e);
-        tempNotes = "Failed to load campaign notes.";
+        console.error('Error fetching notes:', e);
+        tempNotes = 'Failed to load campaign notes: ' + e.message;
       }
     }
 
@@ -146,7 +347,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           const json = await res.json();
           chars.push(JSON.stringify(json, null, 2));
         } catch(e) {
-          console.error("Error fetching pathbuilder json for " + url, e);
+          console.error('Error fetching pathbuilder json for ' + url, e);
         }
       }
       if (chars.length > 0) tempChars = chars.join('\n\n---\n\n');
@@ -208,6 +409,34 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
+  async function routeQuestion(text, apiKey) {
+    const prompt = `You are a routing agent for a Pathfinder 2e assistant.
+The user asked: "${text}"
+Determine which data sources are needed. Select ALL that apply (it is very common to need multiple).
+Output a JSON array of required sources from this list:
+- "core": For basic mechanics, classes, spells, etc.
+- "apg": For Advanced Player's Guide classes (Investigator, Oracle, Swashbuckler, Witch), feats, etc.
+- "gm_core": For GM rules, encounter building, hazards, monsters, etc.
+- "campaign": For campaign notes, character sheets, current story, etc.
+Example: ["core", "campaign"]`;
+
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${apiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        generationConfig: { responseMimeType: "application/json" }
+      })
+    });
+    const json = await res.json();
+    if (json.error) throw new Error("Router error: " + json.error.message);
+    try {
+      return JSON.parse(json.candidates[0].content.parts[0].text);
+    } catch(e) {
+      return ["core", "apg", "gm_core", "campaign"]; // fallback to everything
+    }
+  }
+
   async function handleSend() {
     const text = chatInput.value.trim();
     if (!text) return;
@@ -238,19 +467,54 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     try {
-      loadingDiv.textContent = 'Thinking... (running local search over rulebook)';
-      const { notesText, charactersText } = await fetchContexts();
-      const relevantRules = getRelevantChunks(rulebookText, text, 15000);
+      let route = ["core", "apg", "gm_core", "campaign"]; // default all
+      const routingData = await chrome.storage.local.get(['routingMode']);
+      const mode = routingData.routingMode || "smart";
+
+      if (mode === "smart") {
+        loadingDiv.textContent = 'Thinking... (analyzing question)';
+        route = await routeQuestion(text, data.apiKey);
+        console.log('[Stark router] Smart Decided to load:', route);
+      } else if (mode === "manual") {
+        route = [];
+        document.querySelectorAll('.manual-source-cb').forEach(cb => {
+          if (cb.checked) route.push(cb.value);
+        });
+        console.log('[Stark router] Manual Decided to load:', route);
+      } else {
+        console.log('[Stark router] Load All mode selected.');
+      }
+
+      loadingDiv.textContent = 'Thinking... (gathering context)';
       
-      const systemInstruction = `You are Stark, an AI assistant for a Pathfinder 2e campaign. 
-Do not search the internet. Only use the provided context to answer questions.
-The context contains extracted relevant paragraphs from the Pathfinder 2e Core Rulebook, the campaign notes, and the players' character sheets.
+      let notesText = "No campaign notes provided.";
+      let charactersText = "No character sheets provided.";
+      if (route.includes("campaign")) {
+        const contexts = await fetchContexts();
+        notesText = contexts.notesText;
+        charactersText = contexts.charactersText;
+      }
+      
+      loadingDiv.textContent = 'Thinking... (running local search over rulebooks)';
+      let combinedRules = "";
+      if (route.includes("core")) combinedRules += rulebookText + "\n";
+      if (route.includes("apg")) combinedRules += apgText + "\n";
+      if (route.includes("gm_core")) combinedRules += gmCoreText + "\n";
+      
+      let relevantRules = "";
+      if (combinedRules.trim().length > 0) {
+        relevantRules = getRelevantChunks(combinedRules, text, 15000);
+      }
+
+      const systemInstruction = `You are Stark, an AI Game Master assistant for a Pathfinder 2e campaign. 
+Use the provided context to ground your mechanics, but you are highly encouraged to synthesize this information, make logical inferences, and offer strategic advice/recommendations to the player based on Pathfinder 2e rules.
+The context below contains extracted relevant paragraphs from Pathfinder 2e rulebooks, the campaign notes, and the players' character sheets.
 
 --- CAMPAIGN NOTES ---
-${notesText.substring(0, 20000)}
+${notesText}
 
 --- CHARACTER SHEETS ---
-${charactersText.substring(0, 20000)}
+${charactersText}
 
 --- RELEVANT RULEBOOK EXCERPTS ---
 ${relevantRules}

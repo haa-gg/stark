@@ -28,13 +28,26 @@
     <div class="input-group">
       <label>Campaign Notes (Google Doc URL)</label>
       <input type="text" id="notes-url" placeholder="https://docs.google.com/document/d/...">
-      <small>Note: Doc must be 'Published to web'</small>
+      <div id="google-auth-section" style="margin-top: 8px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+        <button id="connect-google-btn" style="padding: 5px 10px; font-size: 12px;">🔗 Connect Google Account</button>
+        <span id="google-auth-status" style="font-size: 12px; color: var(--meter-safe); display: none;">✓ Connected</span>
+        <button id="disconnect-google-btn" style="display: none; background: transparent; border: 1px solid var(--meter-danger); color: var(--meter-danger); font-size: 11px; padding: 3px 7px;">Disconnect</button>
+      </div>
+      <small style="display: block; margin-top: 6px;">Connect your account once — Stark will automatically read all tabs in your doc.</small>
     </div>
     <div class="input-group">
       <label>Pathbuilder JSON URLs</label>
       <textarea id="pb-urls" placeholder="https://pathbuilder2e.com/json.php?id=123456 (one per line)"></textarea>
     </div>
-    <button id="save-settings">Save & Start</button>
+    <div class="input-group">
+      <label for="routing-mode">Context Routing Mode</label>
+      <select id="routing-mode" style="width: 100%; padding: 6px; border-radius: 4px; border: 1px solid #444; background: #222; color: #fff;">
+        <option value="smart">Smart Auto (Saves tokens)</option>
+        <option value="manual">Manual (Checkboxes in chat)</option>
+        <option value="all">Load All (Slowest, uses max tokens)</option>
+      </select>
+    </div>
+    <button id="save-settings" style="margin-top: 10px;">Save & Start</button>
   </div>
 
   <div id="chat-view" class="hidden">
@@ -43,12 +56,18 @@
       <div>
         <button id="sync-btn" title="Force Sync Data">↻</button>
         <button id="open-settings" title="Settings">⚙</button>
+        <button id="close-panel" title="Close Panel" style="margin-left: 5px;">✖</button>
       </div>
     </div>
     <div id="chat-messages"></div>
-    <div class="chat-input-area">
-      <textarea id="chat-input" placeholder="Ask about rules, campaign, or your characters..."></textarea>
-      <button id="send-btn">Send</button>
+    <div style="display: flex; flex-direction: column; gap: 5px; margin-bottom: 10px;">
+      <div class="chat-input-area" style="margin-bottom: 0;">
+        <textarea id="chat-input" placeholder="Ask about rules, campaign, or your characters..."></textarea>
+        <button id="send-btn">Send</button>
+      </div>
+      <div id="manual-routing-options" style="display: none; flex-wrap: wrap; gap: 8px; font-size: 11px;">
+        <!-- Dynamically populated by JS -->
+      </div>
     </div>
     <div id="token-meter-container">
       <div id="token-meter-bar"></div>
