@@ -7,6 +7,20 @@ document.addEventListener('DOMContentLoaded', async () => {
   const closeSettingsBtn = document.getElementById('close-settings');
   const themeToggle = document.getElementById('theme-toggle');
 
+  const apiProviderSelect = document.getElementById('api-provider');
+  const openaiSettings = document.getElementById('openai-settings');
+  const baseUrlInput = document.getElementById('base-url');
+  const modelIdInput = document.getElementById('model-id');
+  const fallbackApiKeyInput = document.getElementById('fallback-api-key');
+  const tokenMeterContainer = document.getElementById('token-meter-container');
+
+  if (apiProviderSelect) {
+    apiProviderSelect.addEventListener('change', () => {
+      openaiSettings.style.display = apiProviderSelect.value === 'openai' ? 'block' : 'none';
+    });
+  }
+
+
   const apiKeyInput = document.getElementById('api-key');
   const toggleApiKeyBtn = document.getElementById('toggle-api-key');
   const notesUrlInput = document.getElementById('notes-url');
@@ -131,7 +145,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     .then(text => { gmCoreText = text; })
     .catch(err => console.error("Failed to load gm core", err));
 
-  const data = await chrome.storage.local.get(['apiKey', 'notesUrl', 'pbUrls', 'lightMode', 'routingMode']);
+  const data = await chrome.storage.local.get(['apiKey', 'apiProvider', 'baseUrl', 'modelId', 'notesUrl', 'pbUrls', 'lightMode', 'routingMode']);
   const routingModeSelect = document.getElementById('routing-mode');
   const manualRoutingOptions = document.getElementById('manual-routing-options');
   
@@ -186,6 +200,15 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (data.apiKey) {
     apiKeyInput.value = data.apiKey;
     notesUrlInput.value = data.notesUrl || '';
+
+    if (apiProviderSelect) {
+      apiProviderSelect.value = data.apiProvider || 'gemini';
+      baseUrlInput.value = data.baseUrl || '';
+      if (fallbackApiKeyInput) fallbackApiKeyInput.value = data.fallbackApiKey || '';
+      modelIdInput.value = data.modelId || '';
+      openaiSettings.style.display = apiProviderSelect.value === 'openai' ? 'block' : 'none';
+    }
+
     pbUrlsInput.value = data.pbUrls || '';
     settingsView.classList.add('hidden');
     chatView.classList.remove('hidden');
@@ -200,10 +223,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     toggleApiKeyBtn.addEventListener('click', () => {
       if (apiKeyInput.type === 'password') {
         apiKeyInput.type = 'text';
-        toggleApiKeyBtn.textContent = '🙈';
+        toggleApiKeyBtn.textContent = 'Hide';
       } else {
         apiKeyInput.type = 'password';
-        toggleApiKeyBtn.textContent = '👁';
+        toggleApiKeyBtn.textContent = 'Show';
       }
     });
   }
@@ -228,7 +251,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   closeSettingsBtn.addEventListener('click', () => {
-    chrome.storage.local.get(['apiKey'], (res) => {
+    chrome.storage.local.get(['apiKey', 'apiProvider', 'baseUrl', 'modelId', 'fallbackApiKey'], (res) => {
       if (res.apiKey) {
         settingsView.classList.add('hidden');
         chatView.classList.remove('hidden');
@@ -411,7 +434,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  async function routeQuestion(text, apiKey) {
+  async function routeQuestion(text, apiKey, provider, baseUrl, modelId) {
     const prompt = `You are a routing agent for a Pathfinder 2e assistant.
 The user asked: "${text}"
 Determine which data sources are needed. Select ALL that apply (it is very common to need multiple).
@@ -423,19 +446,35 @@ Output a JSON array of required sources from this list:
 Example: ["core", "campaign"]`;
 
     let model = 'gemini-3.6-flash';
-    let res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        generationConfig: { responseMimeType: "application/json" }
-      })
-    });
-    let json = await res.json();
+    let res, json, content;
+    if (provider === 'openai') {
+      res = await fetch(baseUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+        body: JSON.stringify({
+          model: modelId,
+          messages: [{ role: 'user', content: prompt }]
+        })
+      });
+      json = await res.json();
+      if (json.error) throw new Error("Router error: " + (json.error.message || json.error));
+      content = json.choices[0].message.content;
+    } else {
+      res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts: [{ text: prompt }] }],
+          generationConfig: { responseMimeType: "application/json" }
+        })
+      });
+      json = await res.json();
+      if (json.error) throw new Error("Router error: " + json.error.message);
+      content = json.candidates[0].content.parts[0].text;
+    }
     
-    if (json.error) throw new Error("Router error: " + json.error.message);
     try {
-      return JSON.parse(json.candidates[0].content.parts[0].text);
+      return JSON.parse(content);
     } catch(e) {
       return ["core", "apg", "gm_core", "campaign"]; // fallback to everything
     }
@@ -462,7 +501,7 @@ Example: ["core", "campaign"]`;
     chatMessages.appendChild(loadingDiv);
     chatMessages.scrollTop = chatMessages.scrollHeight;
 
-    const data = await chrome.storage.local.get(['apiKey']);
+    const data = await chrome.storage.local.get(['apiKey', 'apiProvider', 'baseUrl', 'modelId', 'fallbackApiKey']);
     if (!data.apiKey) {
       loadingDiv.textContent = "Error: API Key is missing. Please configure settings.";
       chatInput.disabled = false;
@@ -477,7 +516,7 @@ Example: ["core", "campaign"]`;
 
       if (mode === "smart") {
         loadingDiv.textContent = 'Thinking... (analyzing question)';
-        route = await routeQuestion(text, data.apiKey);
+        route = await routeQuestion(text, data.apiProvider === 'openai' ? data.fallbackApiKey : data.apiKey, data.apiProvider, data.baseUrl, data.modelId);
         console.log('[Stark router] Smart Decided to load:', route);
       } else if (mode === "manual") {
         route = [];
@@ -524,43 +563,72 @@ ${charactersText}
 ${relevantRules}
 `;
 
-      const reqBody = {
-        system_instruction: { parts: { text: systemInstruction } },
-        contents: conversationHistory
-      };
-
-      loadingDiv.textContent = 'Thinking... (calling Gemini)';
-
-      let json;
-      let delay = 2000;
-      let retries = 5;
-
-      while (retries > 0) {
-        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${data.apiKey}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(reqBody)
-        });
-
-        json = await res.json();
-        
-        if (json.error && json.error.code === 503) {
-          retries--;
-          if (retries === 0) throw new Error("Google API is experiencing high demand and failed after 5 retries. Please try again later.");
-          loadingDiv.textContent = `High demand on Google's servers. Retrying in ${delay / 1000}s...`;
-          await new Promise(r => setTimeout(r, delay));
-          delay *= 2; 
-        } else if (json.error) {
-          throw new Error(json.error.message);
-        } else {
-          break; 
-        }
-      }
-
-      const answer = json.candidates[0].content.parts[0].text;
+      let answer = "";
       
-      if (json.usageMetadata && json.usageMetadata.totalTokenCount) {
-        updateTokenMeter(json.usageMetadata.totalTokenCount);
+      if (data.apiProvider === 'openai') {
+        loadingDiv.textContent = 'Thinking... (calling Fallback Provider)';
+        tokenMeterContainer.style.display = 'none'; // Hide meter for fallback
+        
+        // Convert history to OpenAI format
+        const openaiMessages = [ { role: 'system', content: systemInstruction } ];
+        for (const msg of conversationHistory) {
+           openaiMessages.push({
+             role: msg.role === 'model' ? 'assistant' : 'user',
+             content: msg.parts[0].text
+           });
+        }
+
+        const res = await fetch(data.baseUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${data.fallbackApiKey}` },
+          body: JSON.stringify({
+            model: data.modelId,
+            messages: openaiMessages
+          })
+        });
+        const json = await res.json();
+        if (json.error) throw new Error(json.error.message || JSON.stringify(json.error));
+        answer = json.choices[0].message.content;
+      } else {
+        tokenMeterContainer.style.display = 'block';
+        const reqBody = {
+          system_instruction: { parts: { text: systemInstruction } },
+          contents: conversationHistory
+        };
+
+        loadingDiv.textContent = 'Thinking... (calling Gemini)';
+
+        let json;
+        let delay = 2000;
+        let retries = 5;
+
+        while (retries > 0) {
+          const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${data.apiKey}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(reqBody)
+          });
+
+          json = await res.json();
+          
+          if (json.error && json.error.code === 503) {
+            retries--;
+            if (retries === 0) throw new Error("Google API is experiencing high demand and failed after 5 retries. Please try again later.");
+            loadingDiv.textContent = `High demand on Google's servers. Retrying in ${delay / 1000}s...`;
+            await new Promise(r => setTimeout(r, delay));
+            delay *= 2; 
+          } else if (json.error) {
+            throw new Error(json.error.message);
+          } else {
+            break; 
+          }
+        }
+
+        answer = json.candidates[0].content.parts[0].text;
+        
+        if (json.usageMetadata && json.usageMetadata.totalTokenCount) {
+          updateTokenMeter(json.usageMetadata.totalTokenCount);
+        }
       }
       
       loadingDiv.textContent = answer;

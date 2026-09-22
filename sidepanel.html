@@ -22,7 +22,7 @@
       <label>Gemini API Key</label>
       <div style="display: flex; gap: 5px; margin-bottom: 5px;">
         <input type="password" id="api-key" placeholder="AIzaSy..." style="flex-grow: 1;">
-        <button id="toggle-api-key" style="padding: 5px 10px; font-size: 14px;" title="Toggle Visibility">👁</button>
+        <button id="toggle-api-key" style="padding: 5px 10px; font-size: 14px;" title="Toggle Visibility">Show</button>
       </div>
       <small><a href="https://aistudio.google.com/app/apikey" target="_blank" style="color: var(--accent-gold); text-decoration: none;">Get a free API key here</a></small>
     </div>
@@ -48,6 +48,37 @@
         <option value="all">Load All (Slowest, uses max tokens)</option>
       </select>
     </div>
+
+    <details style="margin-top: 15px; background: var(--panel-bg); padding: 10px; border-radius: 4px; border: 1px solid var(--border-color);">
+      <summary style="cursor: pointer; font-weight: bold; font-size: 14px;">Advanced Settings (Fallback Providers)</summary>
+      
+      <div class="input-group" style="margin-top: 10px;">
+        <label for="api-provider">API Provider</label>
+        <select id="api-provider" style="width: 100%; padding: 6px; border-radius: 4px; border: 1px solid #444; background: #222; color: #fff;">
+          <option value="gemini">Google Gemini (Default)</option>
+          <option value="openai">OpenAI Compatible (Groq, OpenRouter, Local)</option>
+        </select>
+      </div>
+
+      <div id="openai-settings" style="display: none;">
+        
+        <div class="input-group">
+          <label>Fallback API Key (Groq, OpenRouter, etc)</label>
+          <input type="password" id="fallback-api-key" placeholder="gsk_...">
+        </div>
+        <div class="input-group">
+          <label>Base URL (Custom Endpoint)</label>
+
+          <input type="text" id="base-url" placeholder="https://api.groq.com/openai/v1/chat/completions">
+        </div>
+        <div class="input-group">
+          <label>Model ID</label>
+          <input type="text" id="model-id" placeholder="llama-3.1-70b-versatile">
+        </div>
+        
+      </div>
+    </details>
+
     <button id="save-settings" style="margin-top: 10px;">Save & Start</button>
   </div>
 

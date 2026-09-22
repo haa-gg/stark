@@ -9,10 +9,15 @@
     "identity"
   ],
   "host_permissions": [
-    "https://*.pathbuilder2e.com/*",
     "https://*.google.com/*",
     "https://generativelanguage.googleapis.com/*",
-    "https://docs.googleapis.com/*"
+    "https://openrouter.ai/*",
+    "https://docs.googleapis.com/*",
+    "https://api.groq.com/*",
+    "https://*.pathbuilder2e.com/*",
+    "http://localhost/*",
+    "http://127.0.0.1/*",
+    "https://api.openai.com/*"
   ],
   "background": {
     "service_worker": "background.js"
@@ -25,8 +30,12 @@
   },
   "web_accessible_resources": [
     {
-      "resources": [ "rulebook.txt" ],
-      "matches": [ "<all_urls>" ]
+      "resources": [
+        "rulebook.txt"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
     }
   ]
 }
