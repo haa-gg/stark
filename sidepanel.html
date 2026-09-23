@@ -27,8 +27,13 @@
       <small><a href="https://aistudio.google.com/app/apikey" target="_blank" style="color: var(--accent-gold); text-decoration: none;">Get a free API key here</a></small>
     </div>
     <div class="input-group">
-      <label>Campaign Notes (Google Doc URL)</label>
-      <input type="text" id="notes-url" placeholder="https://docs.google.com/document/d/...">
+      <label>Campaign Notes (Google Doc URLs)</label>
+      <div id="notes-urls-container" style="display: flex; flex-direction: column; gap: 5px;">
+        <div style="display: flex; gap: 5px;">
+          <input type="text" class="notes-url-input" placeholder="https://docs.google.com/document/d/..." style="flex-grow: 1;">
+          <button id="add-notes-url-btn" style="padding: 5px 10px; font-size: 14px; font-weight: bold;" title="Add another Google Doc">+</button>
+        </div>
+      </div>
       <div id="google-auth-section" style="margin-top: 8px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
         <button id="connect-google-btn" style="padding: 5px 10px; font-size: 12px;">🔗 Connect Google Account</button>
         <span id="google-auth-status" style="font-size: 12px; color: var(--meter-safe); display: none;">✓ Connected</span>
@@ -53,29 +58,81 @@
       <summary style="cursor: pointer; font-weight: bold; font-size: 14px;">Advanced Settings (Fallback Providers)</summary>
       
       <div class="input-group" style="margin-top: 10px;">
-        <label for="api-provider">API Provider</label>
-        <select id="api-provider" style="width: 100%; padding: 6px; border-radius: 4px; border: 1px solid #444; background: #222; color: #fff;">
-          <option value="gemini">Google Gemini (Default)</option>
-          <option value="openai">OpenAI Compatible (Groq, OpenRouter, Local)</option>
-        </select>
-      </div>
-
-      <div id="openai-settings" style="display: none;">
-        
-        <div class="input-group">
-          <label>Fallback API Key (Groq, OpenRouter, etc)</label>
-          <input type="password" id="fallback-api-key" placeholder="gsk_...">
-        </div>
-        <div class="input-group">
-          <label>Base URL (Custom Endpoint)</label>
-
-          <input type="text" id="base-url" placeholder="https://api.groq.com/openai/v1/chat/completions">
-        </div>
-        <div class="input-group">
-          <label>Model ID</label>
-          <input type="text" id="model-id" placeholder="llama-3.1-70b-versatile">
-        </div>
-        
+        <label>AI Provider Fallback Stack</label>
+        <p style="font-size: 11px; color: #888; margin-top: 2px;">Drag to reorder. The top provider is used first.</p>
+        <ul id="provider-stack">
+          <!-- Gemini -->
+          <li class="provider-box" draggable="true" data-provider="gemini">
+            <div class="provider-header">
+              <div class="drag-handle">⋮⋮</div>
+              <div class="provider-arrows">
+                <button class="provider-arrow-btn up" type="button">▲</button>
+                <button class="provider-arrow-btn down" type="button">▼</button>
+              </div>
+              <span class="provider-name">Google Gemini (Default)</span>
+            </div>
+          </li>
+          
+          <!-- OpenRouter -->
+          <li class="provider-box" draggable="true" data-provider="openrouter">
+            <div class="provider-header">
+              <div class="drag-handle">⋮⋮</div>
+              <div class="provider-arrows">
+                <button class="provider-arrow-btn up" type="button">▲</button>
+                <button class="provider-arrow-btn down" type="button">▼</button>
+              </div>
+              <span class="provider-name">OpenRouter</span>
+              <button class="provider-edit-btn" type="button">⚙</button>
+            </div>
+            <div class="provider-body hidden">
+              <label>API Key</label>
+              <input type="password" id="key-openrouter" placeholder="sk-or-v1-...">
+              <small style="display: block; margin-top: 4px; margin-bottom: 8px;"><a href="https://openrouter.ai/keys" target="_blank" style="color: var(--accent-gold); text-decoration: none;">Get OpenRouter API key</a></small>
+              <label>Model ID</label>
+              <input type="text" id="model-openrouter" value="nvidia/nemotron-3.5-lightning:free">
+            </div>
+          </li>
+          
+          <!-- Groq -->
+          <li class="provider-box" draggable="true" data-provider="groq">
+            <div class="provider-header">
+              <div class="drag-handle">⋮⋮</div>
+              <div class="provider-arrows">
+                <button class="provider-arrow-btn up" type="button">▲</button>
+                <button class="provider-arrow-btn down" type="button">▼</button>
+              </div>
+              <span class="provider-name">Groq</span>
+              <button class="provider-edit-btn" type="button">⚙</button>
+            </div>
+            <div class="provider-body hidden">
+              <label>API Key</label>
+              <input type="password" id="key-groq" placeholder="gsk_...">
+              <small style="display: block; margin-top: 4px; margin-bottom: 8px;"><a href="https://console.groq.com/keys" target="_blank" style="color: var(--accent-gold); text-decoration: none;">Get Groq API key</a></small>
+              <label>Model ID</label>
+              <input type="text" id="model-groq" value="llama-3.1-70b-versatile">
+            </div>
+          </li>
+          
+          <!-- Localhost -->
+          <li class="provider-box" draggable="true" data-provider="local">
+            <div class="provider-header">
+              <div class="drag-handle">⋮⋮</div>
+              <div class="provider-arrows">
+                <button class="provider-arrow-btn up" type="button">▲</button>
+                <button class="provider-arrow-btn down" type="button">▼</button>
+              </div>
+              <span class="provider-name">Localhost (LM Studio/Ollama)</span>
+              <button class="provider-edit-btn" type="button">⚙</button>
+            </div>
+            <div class="provider-body hidden">
+              <button id="launch-local-wizard-btn" style="width: 100%; background: #ffffff; color: #000; font-weight: bold; margin-bottom: 10px;">Launch Local Setup Wizard</button>
+              <label>Base URL</label>
+              <input type="text" id="url-local" value="http://localhost:1234/v1/chat/completions">
+              <label style="margin-top: 8px;">Model ID (Optional)</label>
+              <input type="text" id="model-local" placeholder="local-model">
+            </div>
+          </li>
+        </ul>
       </div>
     </details>
 
@@ -107,6 +164,35 @@
     </div>
   </div>
 
+  <!-- Local Setup Wizard Modal -->
+  <div id="local-wizard-modal" class="modal-overlay hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Local LLM Setup</h3>
+        <button id="close-wizard-btn" class="close-btn">✖</button>
+      </div>
+      <div class="modal-body">
+        <ol style="padding-left: 20px; line-height: 1.4;">
+          <li><strong>Download an Engine:</strong> Get the classic <a href="https://lmstudio.ai/download#lm-studio-download-heading" target="_blank" style="color: var(--accent-gold);">LM Studio</a> (do not download 'Bionic') or <a href="https://ollama.com" target="_blank" style="color: var(--accent-gold);">Ollama</a>.</li>
+          <li style="margin-top: 10px;">
+            <strong>Download a Model:</strong> In your engine, search for and download <strong>Llama-3.1-8B-Instruct</strong> (it has the 128k context window required for Stark).
+            <div style="margin-top: 8px; text-align: center;">
+              <img src="images/ai-import-demo.gif" alt="LM Studio Llama Search Demo" style="max-width: 100%; border-radius: 4px; border: 1px solid #444;">
+            </div>
+          </li>
+          <li style="margin-top: 10px;"><strong>Start the Server:</strong> Load the model and click "Start Server" (Ensure CORS is enabled in settings so the extension can connect).</li>
+        </ol>
+        
+        <div style="margin-top: 20px; padding: 10px; background: #222; border-radius: 4px; border: 1px solid #444;">
+          <button id="test-local-conn-btn" style="width: 100%; margin-bottom: 8px;">Test Connection</button>
+          <div id="local-conn-status" style="font-size: 13px; min-height: 20px; color: #aaa;">Waiting to test...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="dompurify.min.js"></script>
+  <script src="marked.min.js"></script>
   <script src="sidepanel.js"></script>
 </body>
 </html>

@@ -7,24 +7,127 @@ document.addEventListener('DOMContentLoaded', async () => {
   const closeSettingsBtn = document.getElementById('close-settings');
   const themeToggle = document.getElementById('theme-toggle');
 
-  const apiProviderSelect = document.getElementById('api-provider');
-  const openaiSettings = document.getElementById('openai-settings');
-  const baseUrlInput = document.getElementById('base-url');
-  const modelIdInput = document.getElementById('model-id');
-  const fallbackApiKeyInput = document.getElementById('fallback-api-key');
+  const providerStack = document.getElementById('provider-stack');
   const tokenMeterContainer = document.getElementById('token-meter-container');
+  const localWizardContainer = document.getElementById('local-wizard-container');
+  const launchLocalWizardBtn = document.getElementById('launch-local-wizard-btn');
+  const localWizardModal = document.getElementById('local-wizard-modal');
+  const closeWizardBtn = document.getElementById('close-wizard-btn');
+  const testLocalConnBtn = document.getElementById('test-local-conn-btn');
+  const localConnStatus = document.getElementById('local-conn-status');
 
-  if (apiProviderSelect) {
-    apiProviderSelect.addEventListener('change', () => {
-      openaiSettings.style.display = apiProviderSelect.value === 'openai' ? 'block' : 'none';
+  // Drag and Drop & Accordion Logic
+  if (providerStack) {
+    let draggedBox = null;
+
+    providerStack.addEventListener('dragstart', (e) => {
+      const box = e.target.closest('.provider-box');
+      if (box) {
+        draggedBox = box;
+        box.style.opacity = '0.5';
+        e.dataTransfer.effectAllowed = 'move';
+      }
+    });
+
+    providerStack.addEventListener('dragend', (e) => {
+      const box = e.target.closest('.provider-box');
+      if (box) {
+        box.style.opacity = '1';
+        draggedBox = null;
+      }
+    });
+
+    providerStack.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      const afterElement = getDragAfterElement(providerStack, e.clientY);
+      const currentBox = e.target.closest('.provider-box');
+      
+      // visual feedback
+      document.querySelectorAll('.provider-box').forEach(b => b.classList.remove('drag-over'));
+      if (currentBox && currentBox !== draggedBox) {
+        currentBox.classList.add('drag-over');
+      }
+
+      if (draggedBox) {
+        if (afterElement == null) {
+          providerStack.appendChild(draggedBox);
+        } else {
+          providerStack.insertBefore(draggedBox, afterElement);
+        }
+      }
+    });
+
+    providerStack.addEventListener('drop', (e) => {
+      document.querySelectorAll('.provider-box').forEach(b => b.classList.remove('drag-over'));
+    });
+
+    function getDragAfterElement(container, y) {
+      const draggableElements = [...container.querySelectorAll('.provider-box:not([style*="opacity: 0.5"])')];
+      return draggableElements.reduce((closest, child) => {
+        const box = child.getBoundingClientRect();
+        const offset = y - box.top - box.height / 2;
+        if (offset < 0 && offset > closest.offset) {
+          return { offset: offset, element: child };
+        } else {
+          return closest;
+        }
+      }, { offset: Number.NEGATIVE_INFINITY }).element;
+    }
+
+    // Clicks for arrows and edit buttons
+    providerStack.addEventListener('click', (e) => {
+      const box = e.target.closest('.provider-box');
+      if (!box) return;
+
+      if (e.target.classList.contains('up')) {
+        if (box.previousElementSibling) {
+          providerStack.insertBefore(box, box.previousElementSibling);
+        }
+      } else if (e.target.classList.contains('down')) {
+        if (box.nextElementSibling) {
+          providerStack.insertBefore(box.nextElementSibling, box);
+        }
+      } else if (e.target.closest('.provider-edit-btn')) {
+        const body = box.querySelector('.provider-body');
+        if (body) {
+          body.classList.toggle('hidden');
+        }
+      }
     });
   }
 
 
   const apiKeyInput = document.getElementById('api-key');
   const toggleApiKeyBtn = document.getElementById('toggle-api-key');
-  const notesUrlInput = document.getElementById('notes-url');
+  const toggleFallbackApiKeyBtn = document.getElementById('toggle-fallback-api-key');
+  const notesUrlsContainer = document.getElementById('notes-urls-container');
+  const addNotesUrlBtn = document.getElementById('add-notes-url-btn');
   const pbUrlsInput = document.getElementById('pb-urls');
+
+  if (addNotesUrlBtn && notesUrlsContainer) {
+    addNotesUrlBtn.addEventListener('click', () => {
+      const wrapper = document.createElement('div');
+      wrapper.style.display = 'flex';
+      wrapper.style.gap = '5px';
+      
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.className = 'notes-url-input';
+      input.placeholder = 'https://docs.google.com/document/d/...';
+      input.style.flexGrow = '1';
+      
+      const removeBtn = document.createElement('button');
+      removeBtn.textContent = '✖';
+      removeBtn.style.padding = '5px 10px';
+      removeBtn.style.fontSize = '12px';
+      removeBtn.title = 'Remove Google Doc';
+      removeBtn.addEventListener('click', () => wrapper.remove());
+      
+      wrapper.appendChild(input);
+      wrapper.appendChild(removeBtn);
+      notesUrlsContainer.appendChild(wrapper);
+    });
+  }
   const saveBtn = document.getElementById('save-settings');
   const connectGoogleBtn = document.getElementById('connect-google-btn');
   const disconnectGoogleBtn = document.getElementById('disconnect-google-btn');
@@ -119,7 +222,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     { id: "core", label: "Core" },
     { id: "apg", label: "APG" },
     { id: "gm_core", label: "GM Core" },
-    { id: "campaign", label: "Notes" }
+    { id: "campaign", label: "Notes" },
+    { id: "chars", label: "Characters" }
   ];
 
   let rulebookText = "";
@@ -145,7 +249,38 @@ document.addEventListener('DOMContentLoaded', async () => {
     .then(text => { gmCoreText = text; })
     .catch(err => console.error("Failed to load gm core", err));
 
-  const data = await chrome.storage.local.get(['apiKey', 'apiProvider', 'baseUrl', 'modelId', 'notesUrl', 'pbUrls', 'lightMode', 'routingMode']);
+  const data = await chrome.storage.local.get(['apiKey', 'notesUrl', 'pbUrls', 'lightMode', 'routingMode', 'providerOrder', 'providerConfigs', 'apiProvider', 'fallbackApiKey', 'baseUrl', 'modelId']);
+  
+  // Migrate legacy single-provider settings to providerStack config if it doesn't exist
+  if (!data.providerOrder) {
+    data.providerOrder = ['gemini', 'openrouter', 'groq', 'local'];
+    // Try to slot the old active provider first
+    if (data.apiProvider && data.apiProvider !== 'gemini' && data.apiProvider !== 'custom') {
+      const fam = data.apiProvider.startsWith('groq') ? 'groq' : data.apiProvider;
+      data.providerOrder = data.providerOrder.filter(p => p !== fam);
+      data.providerOrder.unshift(fam);
+    }
+  }
+  if (!data.providerConfigs) {
+    data.providerConfigs = {
+      openrouter: { key: '', model: 'nvidia/nemotron-3.5-lightning:free' },
+      groq: { key: '', model: 'llama-3.3-70b-versatile' },
+      local: { url: 'http://localhost:1234/v1/chat/completions', model: 'local-model' }
+    };
+    
+    // Attempt legacy migration
+    const legacyKey = typeof data.fallbackApiKey === 'object' ? data.fallbackApiKey : { groq: data.fallbackApiKey, openrouter: data.fallbackApiKey };
+    if (legacyKey && legacyKey.groq) data.providerConfigs.groq.key = legacyKey.groq;
+    if (legacyKey && legacyKey.openrouter) data.providerConfigs.openrouter.key = legacyKey.openrouter;
+    
+    if (data.apiProvider === 'local') {
+      if (data.baseUrl) data.providerConfigs.local.url = data.baseUrl;
+      if (data.modelId) data.providerConfigs.local.model = data.modelId;
+    } else if (data.apiProvider && data.apiProvider.startsWith('groq') && data.modelId) {
+      data.providerConfigs.groq.model = data.modelId;
+    }
+  }
+  
   const routingModeSelect = document.getElementById('routing-mode');
   const manualRoutingOptions = document.getElementById('manual-routing-options');
   
@@ -199,17 +334,51 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   if (data.apiKey) {
     apiKeyInput.value = data.apiKey;
-    notesUrlInput.value = data.notesUrl || '';
+  }
 
-    if (apiProviderSelect) {
-      apiProviderSelect.value = data.apiProvider || 'gemini';
-      baseUrlInput.value = data.baseUrl || '';
-      if (fallbackApiKeyInput) fallbackApiKeyInput.value = data.fallbackApiKey || '';
-      modelIdInput.value = data.modelId || '';
-      openaiSettings.style.display = apiProviderSelect.value === 'openai' ? 'block' : 'none';
+  if (data.notesUrl) {
+    const urls = data.notesUrl.split('\n').filter(u => u.trim().length > 0);
+    const inputs = document.querySelectorAll('.notes-url-input');
+    if (urls.length > 0 && inputs.length > 0) {
+      inputs[0].value = urls[0];
+      for (let i = 1; i < urls.length; i++) {
+        addNotesUrlBtn.click();
+        const newInputs = document.querySelectorAll('.notes-url-input');
+        newInputs[newInputs.length - 1].value = urls[i];
+      }
     }
+  }
 
-    pbUrlsInput.value = data.pbUrls || '';
+  if (providerStack && data.providerOrder) {
+    // Reorder DOM to match providerOrder
+    data.providerOrder.forEach(providerId => {
+      const box = providerStack.querySelector(`.provider-box[data-provider="${providerId}"]`);
+      if (box) providerStack.appendChild(box);
+    });
+    // Populate configs
+    if (data.providerConfigs.openrouter) {
+      const keyEl = document.getElementById('key-openrouter');
+      const modEl = document.getElementById('model-openrouter');
+      if(keyEl) keyEl.value = data.providerConfigs.openrouter.key || '';
+      if(modEl) modEl.value = data.providerConfigs.openrouter.model || '';
+    }
+    if (data.providerConfigs.groq) {
+      const keyEl = document.getElementById('key-groq');
+      const modEl = document.getElementById('model-groq');
+      if(keyEl) keyEl.value = data.providerConfigs.groq.key || '';
+      if(modEl) modEl.value = data.providerConfigs.groq.model || '';
+    }
+    if (data.providerConfigs.local) {
+      const urlEl = document.getElementById('url-local');
+      const modEl = document.getElementById('model-local');
+      if(urlEl) urlEl.value = data.providerConfigs.local.url || '';
+      if(modEl) modEl.value = data.providerConfigs.local.model || '';
+    }
+  }
+
+  pbUrlsInput.value = data.pbUrls || '';
+
+  if (data.apiKey) {
     settingsView.classList.add('hidden');
     chatView.classList.remove('hidden');
     applyRoutingUI();
@@ -232,9 +401,27 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   saveBtn.addEventListener('click', () => {
+    const currentOrder = Array.from(document.querySelectorAll('.provider-box')).map(box => box.dataset.provider);
+    const newConfigs = {
+      openrouter: {
+        key: document.getElementById('key-openrouter') ? document.getElementById('key-openrouter').value.trim() : '',
+        model: document.getElementById('model-openrouter') ? document.getElementById('model-openrouter').value.trim() : ''
+      },
+      groq: {
+        key: document.getElementById('key-groq') ? document.getElementById('key-groq').value.trim() : '',
+        model: document.getElementById('model-groq') ? document.getElementById('model-groq').value.trim() : ''
+      },
+      local: {
+        url: document.getElementById('url-local') ? document.getElementById('url-local').value.trim() : '',
+        model: document.getElementById('model-local') ? document.getElementById('model-local').value.trim() : ''
+      }
+    };
+
     chrome.storage.local.set({
       apiKey: apiKeyInput.value.trim(),
-      notesUrl: notesUrlInput.value.trim(),
+      providerOrder: currentOrder,
+      providerConfigs: newConfigs,
+      notesUrl: Array.from(document.querySelectorAll('.notes-url-input')).map(i => i.value.trim()).filter(v => v).join('\n'),
       pbUrls: pbUrlsInput.value.trim(),
       routingMode: routingModeSelect.value
     }, () => {
@@ -251,14 +438,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   closeSettingsBtn.addEventListener('click', () => {
-    chrome.storage.local.get(['apiKey', 'apiProvider', 'baseUrl', 'modelId', 'fallbackApiKey'], (res) => {
-      if (res.apiKey) {
-        settingsView.classList.add('hidden');
-        chatView.classList.remove('hidden');
-      } else {
-        alert("Please enter a Gemini API Key to continue.");
-      }
-    });
+    settingsView.classList.add('hidden');
+    chatView.classList.remove('hidden');
+    applyRoutingUI();
   });
   
   syncBtn.addEventListener('click', async () => {
@@ -316,50 +498,45 @@ document.addEventListener('DOMContentLoaded', async () => {
     let tempChars = "No character sheets provided.";
 
     if (data.notesUrl) {
-      try {
-        const docIdMatch = data.notesUrl.match(/\/document\/d\/([a-zA-Z0-9-_]+)/);
-        if (docIdMatch?.[1]) {
-          const docId = docIdMatch[1];
+      const urls = data.notesUrl.split('\n').map(u => u.trim()).filter(u => u);
+      if (urls.length > 0) {
+        try {
           const token = await getStoredToken();
-
-          if (token) {
-            // --- Authenticated: use Google Docs API to fetch all tabs ---
-            const res = await fetch(
-              `https://docs.googleapis.com/v1/documents/${docId}?includeTabsContent=true`,
-              { headers: { 'Authorization': `Bearer ${token}` } }
-            );
-            if (res.status === 401) {
-              // Token expired — clear it and fall through to unauthenticated fetch
-              chrome.storage.local.remove(['googleToken', 'googleTokenExpiry']);
-              updateAuthUI(false);
-              throw new Error('Google token expired. Please reconnect in settings.');
+          const docPromises = urls.map(async (url, index) => {
+            const docIdMatch = url.match(/\/document\/d\/([a-zA-Z0-9-_]+)/);
+            if (!docIdMatch?.[1]) return '';
+            const docId = docIdMatch[1];
+            
+            if (token) {
+              const res = await fetch(
+                `https://docs.googleapis.com/v1/documents/${docId}?includeTabsContent=true`,
+                { headers: { 'Authorization': `Bearer ${token}` } }
+              );
+              if (res.status === 401) {
+                chrome.storage.local.remove(['googleToken', 'googleTokenExpiry']);
+                updateAuthUI(false);
+                throw new Error('Google token expired. Please reconnect in settings.');
+              }
+              if (!res.ok) throw new Error(`Docs API error ${res.status} for doc ${index + 1}`);
+              const doc = await res.json();
+              const extracted = extractTextFromTabs(doc.tabs);
+              return `--- Document ${index + 1} ---\n` + (extracted.trim() || 'No content found.');
+            } else {
+              const res = await fetch(
+                `https://docs.google.com/document/d/${docId}/export?format=txt`
+              );
+              const text = await res.text();
+              const docText = text.trim().startsWith('<!DOCTYPE') ? 'Could not read doc. Connect your Google Account for full access.' : text;
+              return `--- Document ${index + 1} ---\n` + docText;
             }
-            if (!res.ok) throw new Error(`Docs API error ${res.status}`);
-            const doc = await res.json();
-            // DEBUG: log response shape
-            console.log('[Stark debug] doc keys:', Object.keys(doc));
-            console.log('[Stark debug] tabs count:', doc.tabs?.length);
-            if (doc.tabs?.[0]) {
-              const t0 = doc.tabs[0];
-              console.log('[Stark debug] tab[0] title:', t0.tabProperties?.title);
-              console.log('[Stark debug] tab[0] has documentTab:', !!t0.documentTab);
-              console.log('[Stark debug] tab[0] body content length:', t0.documentTab?.body?.content?.length);
-            }
-            const extracted = extractTextFromTabs(doc.tabs);
-            console.log('[Stark debug] extracted text length:', extracted.length);
-            tempNotes = extracted.trim() || 'No content found.';
-          } else {
-            // --- Unauthenticated fallback: single-tab export ---
-            const res = await fetch(
-              `https://docs.google.com/document/d/${docId}/export?format=txt`
-            );
-            const text = await res.text();
-            tempNotes = text.trim().startsWith('<!DOCTYPE') ? 'Could not read doc. Connect your Google Account for full access.' : text;
-          }
+          });
+          
+          const results = await Promise.all(docPromises);
+          tempNotes = results.filter(t => t).join('\n\n') || "No content found in any document.";
+        } catch (e) {
+          console.error('Error fetching notes:', e);
+          tempNotes = 'Failed to load campaign notes: ' + e.message;
         }
-      } catch(e) {
-        console.error('Error fetching notes:', e);
-        tempNotes = 'Failed to load campaign notes: ' + e.message;
       }
     }
 
@@ -414,7 +591,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   function addMessage(role, text) {
     const div = document.createElement('div');
     div.className = `message ${role}`;
-    div.textContent = text;
+    if (role === 'model' && typeof marked !== 'undefined' && typeof DOMPurify !== 'undefined') {
+      div.innerHTML = DOMPurify.sanitize(marked.parse(text));
+    } else {
+      div.textContent = text;
+    }
     chatMessages.appendChild(div);
     chatMessages.scrollTop = chatMessages.scrollHeight;
   }
@@ -434,7 +615,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  async function routeQuestion(text, apiKey, provider, baseUrl, modelId) {
+  async function routeQuestion(text, data) {
     const prompt = `You are a routing agent for a Pathfinder 2e assistant.
 The user asked: "${text}"
 Determine which data sources are needed. Select ALL that apply (it is very common to need multiple).
@@ -442,41 +623,60 @@ Output a JSON array of required sources from this list:
 - "core": For basic mechanics, classes, spells, etc.
 - "apg": For Advanced Player's Guide classes (Investigator, Oracle, Swashbuckler, Witch), feats, etc.
 - "gm_core": For GM rules, encounter building, hazards, monsters, etc.
-- "campaign": For campaign notes, character sheets, current story, etc.
-Example: ["core", "campaign"]`;
+- "campaign": For campaign notes, current story, etc.
+- "chars": For player character sheets and stats, etc.
+Example: ["core", "campaign", "chars"]`;
 
-    let model = 'gemini-3.6-flash';
-    let res, json, content;
-    if (provider === 'openai') {
-      res = await fetch(baseUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-        body: JSON.stringify({
-          model: modelId,
-          messages: [{ role: 'user', content: prompt }]
-        })
-      });
-      json = await res.json();
-      if (json.error) throw new Error("Router error: " + (json.error.message || json.error));
-      content = json.choices[0].message.content;
-    } else {
-      res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ role: 'user', parts: [{ text: prompt }] }],
-          generationConfig: { responseMimeType: "application/json" }
-        })
-      });
-      json = await res.json();
-      if (json.error) throw new Error("Router error: " + json.error.message);
-      content = json.candidates[0].content.parts[0].text;
+    const order = data.providerOrder || ['gemini'];
+    const configs = data.providerConfigs || {};
+    let content = null;
+
+    for (let i = 0; i < order.length; i++) {
+      const provider = order[i];
+      try {
+        if (provider === 'gemini') {
+          const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${data.apiKey}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{ role: 'user', parts: [{ text: prompt }] }],
+              generationConfig: { responseMimeType: "application/json" }
+            }),
+            signal: AbortSignal.timeout(10000)
+          });
+          const json = await res.json();
+          if (json.error) throw new Error(json.error.message);
+          content = json.candidates[0].content.parts[0].text;
+          break;
+        } else {
+          const config = configs[provider] || {};
+          const baseUrl = provider === 'groq' ? 'https://api.groq.com/openai/v1/chat/completions' :
+                          provider === 'openrouter' ? 'https://openrouter.ai/api/v1/chat/completions' :
+                          config.url || 'http://localhost:1234/v1/chat/completions';
+          
+          const res = await fetch(baseUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${config.key || ''}` },
+            body: JSON.stringify({
+              model: config.model || '',
+              messages: [{ role: 'user', content: prompt }]
+            }),
+            signal: AbortSignal.timeout(10000)
+          });
+          const json = await res.json();
+          if (json.error) throw new Error(json.error.message || json.error);
+          content = json.choices[0].message.content;
+          break;
+        }
+      } catch (e) {
+        console.warn(`Router Provider ${provider} failed. Cascading...`);
+      }
     }
-    
+
     try {
       return JSON.parse(content);
     } catch(e) {
-      return ["core", "apg", "gm_core", "campaign"]; // fallback to everything
+      return ["core", "apg", "gm_core", "campaign", "chars"]; // fallback to everything
     }
   }
 
@@ -501,8 +701,8 @@ Example: ["core", "campaign"]`;
     chatMessages.appendChild(loadingDiv);
     chatMessages.scrollTop = chatMessages.scrollHeight;
 
-    const data = await chrome.storage.local.get(['apiKey', 'apiProvider', 'baseUrl', 'modelId', 'fallbackApiKey']);
-    if (!data.apiKey) {
+    const data = await chrome.storage.local.get(['apiKey', 'providerOrder', 'providerConfigs', 'routingMode']);
+    if (!data.apiKey && (!data.providerOrder || data.providerOrder[0] === 'gemini')) {
       loadingDiv.textContent = "Error: API Key is missing. Please configure settings.";
       chatInput.disabled = false;
       sendBtn.disabled = false;
@@ -510,13 +710,12 @@ Example: ["core", "campaign"]`;
     }
 
     try {
-      let route = ["core", "apg", "gm_core", "campaign"]; // default all
-      const routingData = await chrome.storage.local.get(['routingMode']);
-      const mode = routingData.routingMode || "smart";
+      let route = ["core", "apg", "gm_core", "campaign", "chars"]; // default all
+      const mode = data.routingMode || "smart";
 
       if (mode === "smart") {
         loadingDiv.textContent = 'Thinking... (analyzing question)';
-        route = await routeQuestion(text, data.apiProvider === 'openai' ? data.fallbackApiKey : data.apiKey, data.apiProvider, data.baseUrl, data.modelId);
+        route = await routeQuestion(text, data);
         console.log('[Stark router] Smart Decided to load:', route);
       } else if (mode === "manual") {
         route = [];
@@ -532,10 +731,10 @@ Example: ["core", "campaign"]`;
       
       let notesText = "No campaign notes provided.";
       let charactersText = "No character sheets provided.";
-      if (route.includes("campaign")) {
+      if (route.includes("campaign") || route.includes("chars")) {
         const contexts = await fetchContexts();
-        notesText = contexts.notesText;
-        charactersText = contexts.charactersText;
+        if (route.includes("campaign")) notesText = contexts.notesText;
+        if (route.includes("chars")) charactersText = contexts.charactersText;
       }
       
       loadingDiv.textContent = 'Thinking... (running local search over rulebooks)';
@@ -551,6 +750,7 @@ Example: ["core", "campaign"]`;
 
       const systemInstruction = `You are Stark, an AI Game Master assistant for a Pathfinder 2e campaign. 
 Use the provided context to ground your mechanics, but you are highly encouraged to synthesize this information, make logical inferences, and offer strategic advice/recommendations to the player based on Pathfinder 2e rules.
+CRITICAL INSTRUCTION: Do NOT use any emojis in your responses. Keep the tone serious and professional.
 The context below contains extracted relevant paragraphs from Pathfinder 2e rulebooks, the campaign notes, and the players' character sheets.
 
 --- CAMPAIGN NOTES ---
@@ -565,73 +765,149 @@ ${relevantRules}
 
       let answer = "";
       
-      if (data.apiProvider === 'openai') {
-        loadingDiv.textContent = 'Thinking... (calling Fallback Provider)';
-        tokenMeterContainer.style.display = 'none'; // Hide meter for fallback
-        
-        // Convert history to OpenAI format
-        const openaiMessages = [ { role: 'system', content: systemInstruction } ];
-        for (const msg of conversationHistory) {
-           openaiMessages.push({
-             role: msg.role === 'model' ? 'assistant' : 'user',
-             content: msg.parts[0].text
-           });
+      const order = data.providerOrder || ['gemini'];
+      const configs = data.providerConfigs || {};
+      let lastError = null;
+
+      for (let i = 0; i < order.length; i++) {
+        const provider = order[i];
+        let providerName = provider === 'gemini' ? 'Gemini' : 
+                           provider === 'openrouter' ? 'OpenRouter' : 
+                           provider === 'groq' ? 'Groq' : 
+                           provider === 'local' ? 'Local LLM' : 'Unknown Provider';
+
+        if (provider === 'gemini') {
+          tokenMeterContainer.style.display = 'block';
+        } else {
+          tokenMeterContainer.style.display = 'none';
         }
 
-        const res = await fetch(data.baseUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${data.fallbackApiKey}` },
-          body: JSON.stringify({
-            model: data.modelId,
-            messages: openaiMessages
-          })
-        });
-        const json = await res.json();
-        if (json.error) throw new Error(json.error.message || JSON.stringify(json.error));
-        answer = json.choices[0].message.content;
-      } else {
-        tokenMeterContainer.style.display = 'block';
-        const reqBody = {
-          system_instruction: { parts: { text: systemInstruction } },
-          contents: conversationHistory
-        };
+        try {
+          if (provider === 'gemini') {
+            loadingDiv.textContent = 'Thinking... (calling Gemini)';
+            const reqBody = {
+              system_instruction: { parts: { text: systemInstruction } },
+              contents: conversationHistory
+            };
+            
+            let json;
+            let delay = 2000;
+            let retries = 3;
 
-        loadingDiv.textContent = 'Thinking... (calling Gemini)';
+            while (retries > 0) {
+              const controller = new AbortController();
+              const timeoutId = setTimeout(() => controller.abort(), 30000);
 
-        let json;
-        let delay = 2000;
-        let retries = 5;
-
-        while (retries > 0) {
-          const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${data.apiKey}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(reqBody)
-          });
-
-          json = await res.json();
-          
-          if (json.error && json.error.code === 503) {
-            retries--;
-            if (retries === 0) throw new Error("Google API is experiencing high demand and failed after 5 retries. Please try again later.");
-            loadingDiv.textContent = `High demand on Google's servers. Retrying in ${delay / 1000}s...`;
-            await new Promise(r => setTimeout(r, delay));
-            delay *= 2; 
-          } else if (json.error) {
-            throw new Error(json.error.message);
+              let res;
+              try {
+                res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${data.apiKey}`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(reqBody),
+                  signal: controller.signal
+                });
+              } finally {
+                clearTimeout(timeoutId);
+              }
+              
+              json = await res.json();
+              
+              if (json.error && json.error.code === 503) {
+                retries--;
+                if (retries === 0) throw new Error("Google API is experiencing high demand.");
+                loadingDiv.textContent = `High demand on Google's servers. Retrying in ${delay / 1000}s...`;
+                await new Promise(r => setTimeout(r, delay));
+                delay *= 2; 
+              } else if (json.error) {
+                throw new Error(json.error.message || JSON.stringify(json.error));
+              } else {
+                answer = json.candidates[0].content.parts[0].text;
+                if (json.usageMetadata && json.usageMetadata.totalTokenCount) {
+                  updateTokenMeter(json.usageMetadata.totalTokenCount);
+                }
+                break; 
+              }
+            }
           } else {
-            break; 
-          }
-        }
+            // OpenAI Format (Groq, OpenRouter, Local)
+            const config = configs[provider] || {};
+            const baseUrl = provider === 'groq' ? 'https://api.groq.com/openai/v1/chat/completions' :
+                            provider === 'openrouter' ? 'https://openrouter.ai/api/v1/chat/completions' :
+                            config.url || 'http://localhost:1234/v1/chat/completions';
+            const apiKey = config.key || '';
+            const modelId = config.model || '';
 
-        answer = json.candidates[0].content.parts[0].text;
-        
-        if (json.usageMetadata && json.usageMetadata.totalTokenCount) {
-          updateTokenMeter(json.usageMetadata.totalTokenCount);
+            if (provider === 'local' && baseUrl) {
+              fetch(baseUrl.replace('/chat/completions', '/models'), { signal: AbortSignal.timeout(1500) })
+                .then(r => r.json())
+                .then(d => {
+                  if (d && d.data && d.data[0] && loadingDiv.textContent.includes('Thinking')) {
+                    loadingDiv.textContent = `Thinking... (calling Local LLM: ${d.data[0].id})`;
+                  }
+                }).catch(() => {});
+            }
+
+            loadingDiv.textContent = `Thinking... (calling ${providerName})`;
+            
+            const openaiMessages = [ { role: 'system', content: systemInstruction } ];
+            for (const msg of conversationHistory) {
+               openaiMessages.push({
+                 role: msg.role === 'model' ? 'assistant' : 'user',
+                 content: msg.parts[0].text
+               });
+            }
+
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+            let res;
+            try {
+              res = await fetch(baseUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+                body: JSON.stringify({
+                  model: modelId,
+                  messages: openaiMessages
+                }),
+                signal: controller.signal
+              });
+            } finally {
+              clearTimeout(timeoutId);
+            }
+            
+            const json = await res.json();
+            if (json.error) {
+               let errMsg = json.error.message || JSON.stringify(json.error);
+               if (json.error.metadata && json.error.metadata.raw) {
+                  errMsg += ` (Upstream details: ${json.error.metadata.raw})`;
+               }
+               throw new Error(errMsg);
+            }
+            answer = json.choices[0].message.content;
+          }
+
+          // If we successfully got an answer, stop the cascade loop
+          if (answer) {
+             lastError = null;
+             break;
+          }
+        } catch (e) {
+          lastError = e;
+          console.warn(`Provider ${provider} failed: ${e.message}. Cascading to next...`);
         }
       }
+
+      if (lastError && !answer) {
+        throw lastError;
+      } // <-- Added missing closing brace
+      // Trim excessive linebreaks to improve text flow
+      answer = answer.replace(/\n{3,}/g, '\n\n').trim();
       
-      loadingDiv.textContent = answer;
+      if (typeof marked !== 'undefined' && typeof DOMPurify !== 'undefined') {
+        loadingDiv.innerHTML = DOMPurify.sanitize(marked.parse(answer));
+      } else {
+        loadingDiv.textContent = answer;
+      }
       
       conversationHistory.push({ role: 'model', parts: [{ text: answer }] });
       if (conversationHistory.length > 4) {
@@ -640,7 +916,11 @@ ${relevantRules}
       
     } catch (e) {
       console.error(e);
-      loadingDiv.textContent = "Error: " + e.message;
+      if (e.name === 'AbortError') {
+        loadingDiv.textContent = "Error: The request timed out. The AI provider's servers are likely overloaded or down.";
+      } else {
+        loadingDiv.textContent = "Error: " + e.message;
+      }
       conversationHistory.pop();
     } finally {
       chatInput.disabled = false;
@@ -657,4 +937,70 @@ ${relevantRules}
       handleSend();
     }
   });
+
+  // --- Local Wizard Logic ---
+  if (launchLocalWizardBtn && localWizardModal && closeWizardBtn && testLocalConnBtn && localConnStatus) {
+    launchLocalWizardBtn.addEventListener('click', () => {
+      localWizardModal.classList.remove('hidden');
+      localConnStatus.textContent = 'Waiting to test...';
+      localConnStatus.style.color = '#aaa';
+    });
+
+    closeWizardBtn.addEventListener('click', () => {
+      localWizardModal.classList.add('hidden');
+    });
+
+    testLocalConnBtn.addEventListener('click', async () => {
+      testLocalConnBtn.disabled = true;
+      localConnStatus.textContent = 'Pinging localhost servers...';
+      localConnStatus.style.color = '#fff';
+
+      try {
+        let models = [];
+        let connectedServer = '';
+        
+        // Try LM Studio first (default port 1234)
+        try {
+          const controller = new AbortController();
+          const tid = setTimeout(() => controller.abort(), 2000);
+          const lmRes = await fetch('http://localhost:1234/v1/models', { signal: controller.signal });
+          clearTimeout(tid);
+          const lmData = await lmRes.json();
+          if (lmData && lmData.data && lmData.data.length > 0) {
+            models = lmData.data.map(m => m.id);
+            connectedServer = 'LM Studio';
+          }
+        } catch(e) {}
+
+        // If LM Studio failed, try Ollama (default port 11434)
+        if (models.length === 0) {
+          try {
+            const controller = new AbortController();
+            const tid = setTimeout(() => controller.abort(), 2000);
+            const olRes = await fetch('http://localhost:11434/v1/models', { signal: controller.signal });
+            clearTimeout(tid);
+            const olData = await olRes.json();
+            if (olData && olData.data && olData.data.length > 0) {
+              models = olData.data.map(m => m.id);
+              connectedServer = 'Ollama';
+            }
+          } catch(e) {}
+        }
+
+        if (models.length > 0) {
+          localConnStatus.textContent = `✅ Connected to ${connectedServer}! Active model: ${models[0]}`;
+          localConnStatus.style.color = 'var(--meter-safe)';
+        } else {
+          localConnStatus.textContent = `❌ Connection failed. Ensure the server is started and CORS is enabled in settings.`;
+          localConnStatus.style.color = 'var(--meter-danger)';
+        }
+      } catch (err) {
+        localConnStatus.textContent = `❌ Error: ${err.message}`;
+        localConnStatus.style.color = 'var(--meter-danger)';
+      } finally {
+        testLocalConnBtn.disabled = false;
+      }
+    });
+  }
 });
+
