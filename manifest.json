@@ -31,7 +31,8 @@
   "web_accessible_resources": [
     {
       "resources": [
-        "rulebook.txt"
+        "pf2etools_data/data/*.json",
+        "pf2etools_data/data/*/*.json"
       ],
       "matches": [
         "<all_urls>"

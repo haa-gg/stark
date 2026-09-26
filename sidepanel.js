@@ -234,20 +234,45 @@ document.addEventListener('DOMContentLoaded', async () => {
   let cachedCharactersText = "No character sheets provided.";
   let lastSynced = 0;
   
-  fetch(chrome.runtime.getURL('rulebook.txt'))
-    .then(res => res.text())
-    .then(text => { rulebookText = text; })
-    .catch(err => console.error("Failed to load rulebook", err));
+  async function loadPf2eJson(paths) {
+    let combinedText = "";
+    for (const path of paths) {
+      try {
+        const res = await fetch(chrome.runtime.getURL(path));
+        const json = await res.json();
+        // Pf2eTools data is usually stored in arrays under top-level keys (like json.spell)
+        for (const key in json) {
+          if (Array.isArray(json[key])) {
+            // Stringify each object individually, separated by double newlines so the existing getRelevantChunks logic can parse them cleanly!
+            combinedText += json[key].map(item => JSON.stringify(item)).join('\n\n') + '\n\n';
+          }
+        }
+      } catch (err) {
+        console.error("Failed to load JSON path: " + path, err);
+      }
+    }
+    return combinedText;
+  }
 
-  fetch(chrome.runtime.getURL('advanced_players_guide.txt'))
-    .then(res => res.text())
-    .then(text => { apgText = text; })
-    .catch(err => console.error("Failed to load apg", err));
+  // Load the core datasets natively as JSON
+  loadPf2eJson([
+    'pf2etools_data/data/spells/spells-crb.json',
+    'pf2etools_data/data/spells/spells-pc1.json',
+    'pf2etools_data/data/actions.json',
+    'pf2etools_data/data/conditions.json',
+    'pf2etools_data/data/skills.json'
+  ]).then(text => { rulebookText = text; });
 
-  fetch(chrome.runtime.getURL('gm_core.txt'))
-    .then(res => res.text())
-    .then(text => { gmCoreText = text; })
-    .catch(err => console.error("Failed to load gm core", err));
+  loadPf2eJson([
+    'pf2etools_data/data/spells/spells-apg.json',
+    'pf2etools_data/data/spells/spells-pc2.json',
+    'pf2etools_data/data/archetypes.json'
+  ]).then(text => { apgText = text; });
+
+  loadPf2eJson([
+    'pf2etools_data/data/hazards.json',
+    'pf2etools_data/data/variantrules.json'
+  ]).then(text => { gmCoreText = text; });
 
   const data = await chrome.storage.local.get(['apiKey', 'notesUrl', 'pbUrls', 'lightMode', 'routingMode', 'providerOrder', 'providerConfigs', 'apiProvider', 'fallbackApiKey', 'baseUrl', 'modelId']);
   
