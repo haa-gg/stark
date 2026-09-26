@@ -514,7 +514,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   pbUrlsInput.value = data.pbUrls || '';
 
-  if (data.apiKey || (data.providerConfigs && data.providerConfigs.local && data.providerConfigs.local.url)) {
+  if (data.apiKey || (data.providerOrder && data.providerOrder[0] === 'local')) {
     if (loginView) loginView.classList.add('hidden');
     settingsView.classList.add('hidden');
     chatView.classList.remove('hidden');
