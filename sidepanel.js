@@ -255,13 +255,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           alert('Login failed: ' + e.message);
         }
       });
-        loginView.classList.add('hidden');
-        settingsView.classList.remove('hidden');
-      } catch (e) {
-        console.error(e);
-        oauthLoginBtn.textContent = 'Sign in with Google';
-      }
-    });
+
   }
 
   // --- Google OAuth (launchWebAuthFlow) ---
