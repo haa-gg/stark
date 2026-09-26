@@ -624,14 +624,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
 
       chrome.storage.sync.set(payloadToSave, () => {
-        apiKey: apiKeyInput.value.trim(),
-        providerOrder: currentOrder,
-        providerConfigs: newConfigs,
-        campaigns: campaigns,
-        activeCampaign: activeCampaign,
-        pbUrls: pbUrlsInput.value.trim(),
-      routingMode: routingModeSelect.value
-    }, () => {
       lastSynced = 0;
       settingsView.classList.add('hidden');
       chatView.classList.remove('hidden');
