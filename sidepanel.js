@@ -618,6 +618,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         window.supabase.upsertProfile(userId, {
           api_key: payloadToSave.apiKey,
           provider_order: payloadToSave.providerOrder,
+          provider_configs: payloadToSave.providerConfigs,
+          routing_mode: payloadToSave.routingMode,
           campaigns: payloadToSave.campaigns,
           active_campaign: payloadToSave.activeCampaign
         }).catch(e => console.error("Failed to sync to Supabase:", e));
