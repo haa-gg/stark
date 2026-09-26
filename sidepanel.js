@@ -462,7 +462,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (data.routingMode) {
     routingModeSelect.value = data.routingMode;
   } else {
-    routingModeSelect.value = "smart"; // default
+    routingModeSelect.value = "all"; // default
   }
 
   function applyRoutingUI() {
@@ -853,7 +853,7 @@ Example: ["core", "campaign", "chars"]`;
 
     try {
       let route = ["core", "apg", "gm_core", "campaign", "chars"]; // default all
-      const mode = data.routingMode || "smart";
+      const mode = data.routingMode || "all";
 
       if (mode === "smart") {
         loadingDiv.textContent = 'Thinking... (analyzing question)';
