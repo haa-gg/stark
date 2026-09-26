@@ -218,6 +218,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // --- Login / Onboarding Logic ---
   if (getStartedBtn && oauthLoginBtn) {
     getStartedBtn.addEventListener('click', () => {
+      chrome.storage.sync.set({ onboardingComplete: true });
       loginView.classList.add('hidden');
       settingsView.classList.remove('hidden');
     });
@@ -226,6 +227,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       oauthLoginBtn.textContent = 'Authenticating...';
       try {
         await connectGoogle();
+        chrome.storage.sync.set({ onboardingComplete: true });
         loginView.classList.add('hidden');
         settingsView.classList.remove('hidden');
       } catch (e) {
@@ -376,8 +378,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     'pf2etools_data/data/variantrules.json'
   ]).then(text => { gmCoreText = text; });
 
-  const data = await chrome.storage.sync.get(['apiKey', 'campaigns', 'activeCampaign', 'notesUrl', 'pbUrls', 'lightMode', 'routingMode', 'providerOrder', 'providerConfigs', 'apiProvider', 'fallbackApiKey', 'baseUrl', 'modelId']);
+  const data = await chrome.storage.sync.get(['onboardingComplete', 'apiKey', 'campaigns', 'activeCampaign', 'notesUrl', 'pbUrls', 'lightMode', 'routingMode', 'providerOrder', 'providerConfigs', 'apiProvider', 'fallbackApiKey', 'baseUrl', 'modelId']);
   
+    if (data.onboardingComplete) {
+    if (loginView) loginView.classList.add('hidden');
+    if (!data.apiKey && !(data.providerOrder && data.providerOrder[0] === 'local')) {
+      settingsView.classList.remove('hidden');
+      chatView.classList.add('hidden');
+    }
+  }
+
   if (data.campaigns) {
     campaigns = data.campaigns;
     activeCampaign = data.activeCampaign || Object.keys(campaigns)[0];
@@ -559,12 +569,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     };
 
-    chrome.storage.sync.set({
-      apiKey: apiKeyInput.value.trim(),
-      providerOrder: currentOrder,
-      providerConfigs: newConfigs,
-      notesUrl: Array.from(document.querySelectorAll('.notes-url-input')).map(i => i.value.trim()).filter(v => v).join('\n'),
-      pbUrls: pbUrlsInput.value.trim(),
+    saveCurrentUrlsToActiveCampaign();
+      chrome.storage.sync.set({
+        apiKey: apiKeyInput.value.trim(),
+        providerOrder: currentOrder,
+        providerConfigs: newConfigs,
+        campaigns: campaigns,
+        activeCampaign: activeCampaign,
+        pbUrls: pbUrlsInput.value.trim(),
       routingMode: routingModeSelect.value
     }, () => {
       lastSynced = 0;
@@ -635,12 +647,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       return { notesText: cachedNotesText, charactersText: cachedCharactersText };
     }
 
-    const data = await chrome.storage.sync.get(['notesUrl', 'pbUrls']);
+    const data = await chrome.storage.sync.get(['campaigns', 'activeCampaign', 'pbUrls']);
     let tempNotes = "No campaign notes provided.";
     let tempChars = "No character sheets provided.";
 
-    if (data.notesUrl) {
-      const urls = data.notesUrl.split('\n').map(u => u.trim()).filter(u => u);
+    if (data.campaigns && data.activeCampaign && data.campaigns[data.activeCampaign]) {
+        const urls = data.campaigns[data.activeCampaign];
       if (urls.length > 0) {
         try {
           const token = await getStoredToken();
@@ -843,7 +855,7 @@ Example: ["core", "campaign", "chars"]`;
     chatMessages.appendChild(loadingDiv);
     chatMessages.scrollTop = chatMessages.scrollHeight;
 
-    const data = await chrome.storage.sync.get(['apiKey', 'providerOrder', 'providerConfigs', 'routingMode']);
+    const data = await chrome.storage.sync.get(['onboardingComplete', 'apiKey', 'providerOrder', 'providerConfigs', 'routingMode']);
     if (!data.apiKey && (!data.providerOrder || data.providerOrder[0] === 'gemini')) {
       loadingDiv.textContent = "Error: API Key is missing. Please configure settings.";
       chatInput.disabled = false;
@@ -1083,6 +1095,7 @@ ${relevantRules}
   // --- Login / Onboarding Logic ---
   if (getStartedBtn && oauthLoginBtn) {
     getStartedBtn.addEventListener('click', () => {
+      chrome.storage.sync.set({ onboardingComplete: true });
       loginView.classList.add('hidden');
       settingsView.classList.remove('hidden');
     });
