@@ -100,34 +100,108 @@ document.addEventListener('DOMContentLoaded', async () => {
   const apiKeyInput = document.getElementById('api-key');
   const toggleApiKeyBtn = document.getElementById('toggle-api-key');
   const toggleFallbackApiKeyBtn = document.getElementById('toggle-fallback-api-key');
-  const notesUrlsContainer = document.getElementById('notes-urls-container');
-  const addNotesUrlBtn = document.getElementById('add-notes-url-btn');
-  const pbUrlsInput = document.getElementById('pb-urls');
+    const pbUrlsInput = document.getElementById('pb-urls');
 
-  if (addNotesUrlBtn && notesUrlsContainer) {
-    addNotesUrlBtn.addEventListener('click', () => {
-      const wrapper = document.createElement('div');
-      wrapper.style.display = 'flex';
-      wrapper.style.gap = '5px';
-      
-      const input = document.createElement('input');
-      input.type = 'text';
-      input.className = 'notes-url-input';
-      input.placeholder = 'https://docs.google.com/document/d/...';
-      input.style.flexGrow = '1';
-      
-      const removeBtn = document.createElement('button');
-      removeBtn.textContent = '✖';
-      removeBtn.style.padding = '5px 10px';
-      removeBtn.style.fontSize = '12px';
-      removeBtn.title = 'Remove Google Doc';
-      removeBtn.addEventListener('click', () => wrapper.remove());
-      
-      wrapper.appendChild(input);
-      wrapper.appendChild(removeBtn);
-      notesUrlsContainer.appendChild(wrapper);
+  // --- Campaign UI Elements ---
+  const campaignSelect = document.getElementById('campaign-select');
+  const addCampaignBtn = document.getElementById('add-campaign-btn');
+  const deleteCampaignBtn = document.getElementById('delete-campaign-btn');
+  const newCampaignContainer = document.getElementById('new-campaign-container');
+  const newCampaignNameInput = document.getElementById('new-campaign-name');
+  const saveNewCampaignBtn = document.getElementById('save-new-campaign-btn');
+  const cancelNewCampaignBtn = document.getElementById('cancel-new-campaign-btn');
+  const notesUrlsContainer = document.getElementById('notes-urls-container');
+  
+  let campaigns = { "Default Campaign": [] };
+  let activeCampaign = "Default Campaign";
+
+  function renderCampaignOptions() {
+    campaignSelect.innerHTML = '';
+    for (const cName in campaigns) {
+      const opt = document.createElement('option');
+      opt.value = cName;
+      opt.textContent = cName;
+      if (cName === activeCampaign) opt.selected = true;
+      campaignSelect.appendChild(opt);
+    }
+    deleteCampaignBtn.style.display = Object.keys(campaigns).length > 1 ? 'inline-block' : 'none';
+  }
+
+  function renderUrls() {
+    notesUrlsContainer.innerHTML = '';
+    const urls = campaigns[activeCampaign] || [];
+    urls.forEach(u => addUrlInput(u));
+    // Always keep one empty
+    addUrlInput('');
+  }
+
+  function addUrlInput(val) {
+    const wrapper = document.createElement('div');
+    wrapper.style.display = 'flex';
+    wrapper.style.gap = '5px';
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'notes-url-input';
+    input.placeholder = 'https://docs.google.com/document/d/...';
+    input.style.flexGrow = '1';
+    input.value = val;
+    const removeBtn = document.createElement('button');
+    removeBtn.textContent = '✖';
+    removeBtn.style.padding = '5px 10px';
+    removeBtn.style.fontSize = '12px';
+    removeBtn.title = 'Remove Google Doc';
+    removeBtn.addEventListener('click', () => wrapper.remove());
+    wrapper.appendChild(input);
+    wrapper.appendChild(removeBtn);
+    notesUrlsContainer.appendChild(wrapper);
+  }
+
+  function saveCurrentUrlsToActiveCampaign() {
+    const inputs = document.querySelectorAll('.notes-url-input');
+    const urls = Array.from(inputs).map(i => i.value.trim()).filter(v => v);
+    campaigns[activeCampaign] = urls;
+  }
+
+  if (campaignSelect) {
+    campaignSelect.addEventListener('change', (e) => {
+      saveCurrentUrlsToActiveCampaign();
+      activeCampaign = e.target.value;
+      renderUrls();
+    });
+
+    addCampaignBtn.addEventListener('click', () => {
+      newCampaignContainer.style.display = 'flex';
+      newCampaignNameInput.focus();
+    });
+
+    cancelNewCampaignBtn.addEventListener('click', () => {
+      newCampaignContainer.style.display = 'none';
+      newCampaignNameInput.value = '';
+    });
+
+    saveNewCampaignBtn.addEventListener('click', () => {
+      const name = newCampaignNameInput.value.trim();
+      if (name && !campaigns[name]) {
+        saveCurrentUrlsToActiveCampaign();
+        campaigns[name] = [];
+        activeCampaign = name;
+        renderCampaignOptions();
+        renderUrls();
+        newCampaignContainer.style.display = 'none';
+        newCampaignNameInput.value = '';
+      }
+    });
+
+    deleteCampaignBtn.addEventListener('click', () => {
+      if (Object.keys(campaigns).length > 1) {
+        delete campaigns[activeCampaign];
+        activeCampaign = Object.keys(campaigns)[0];
+        renderCampaignOptions();
+        renderUrls();
+      }
     });
   }
+
   const saveBtn = document.getElementById('save-settings');
   const connectGoogleBtn = document.getElementById('connect-google-btn');
   const disconnectGoogleBtn = document.getElementById('disconnect-google-btn');
@@ -274,7 +348,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     'pf2etools_data/data/variantrules.json'
   ]).then(text => { gmCoreText = text; });
 
-  const data = await chrome.storage.sync.get(['apiKey', 'notesUrl', 'pbUrls', 'lightMode', 'routingMode', 'providerOrder', 'providerConfigs', 'apiProvider', 'fallbackApiKey', 'baseUrl', 'modelId']);
+  const data = await chrome.storage.sync.get(['apiKey', 'campaigns', 'activeCampaign', 'notesUrl', 'pbUrls', 'lightMode', 'routingMode', 'providerOrder', 'providerConfigs', 'apiProvider', 'fallbackApiKey', 'baseUrl', 'modelId']);
+  
+  if (data.campaigns) {
+    campaigns = data.campaigns;
+    activeCampaign = data.activeCampaign || Object.keys(campaigns)[0];
+  } else {
+    // Migration from old single-campaign setup
+    const oldUrls = data.notesUrl ? data.notesUrl.split('\n').map(u => u.trim()).filter(u => u) : [];
+    campaigns = { "Default Campaign": oldUrls };
+    activeCampaign = "Default Campaign";
+  }
+  if (campaignSelect) {
+    renderCampaignOptions();
+    renderUrls();
+  }
   
   // Migrate legacy single-provider settings to providerStack config if it doesn't exist
   if (!data.providerOrder) {
@@ -962,6 +1050,26 @@ ${relevantRules}
       handleSend();
     }
   });
+
+  // --- Login / Onboarding Logic ---
+  if (getStartedBtn && oauthLoginBtn) {
+    getStartedBtn.addEventListener('click', () => {
+      loginView.classList.add('hidden');
+      settingsView.classList.remove('hidden');
+    });
+
+    oauthLoginBtn.addEventListener('click', async () => {
+      oauthLoginBtn.textContent = 'Authenticating...';
+      try {
+        await connectGoogle(); // Reuse existing OAuth logic
+        loginView.classList.add('hidden');
+        settingsView.classList.remove('hidden');
+      } catch (e) {
+        console.error(e);
+        oauthLoginBtn.textContent = 'Sign in with Google';
+      }
+    });
+  }
 
   // --- Local Wizard Logic ---
   if (launchLocalWizardBtn && localWizardModal && closeWizardBtn && testLocalConnBtn && localConnStatus) {
