@@ -114,6 +114,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const saveNewCampaignBtn = document.getElementById('save-new-campaign-btn');
   const cancelNewCampaignBtn = document.getElementById('cancel-new-campaign-btn');
   const notesUrlsContainer = document.getElementById('notes-urls-container');
+  const addNotesUrlBtn = document.getElementById('add-notes-url-btn');
   
   let campaigns = { "Default Campaign": [] };
   let activeCampaign = "Default Campaign";
@@ -134,8 +135,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     notesUrlsContainer.innerHTML = '';
     const urls = campaigns[activeCampaign] || [];
     urls.forEach(u => addUrlInput(u));
-    // Always keep one empty
-    addUrlInput('');
+    // Only render saved URLs
   }
 
   function addUrlInput(val) {
@@ -166,6 +166,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   if (campaignSelect) {
+    if (addNotesUrlBtn) {
+      addNotesUrlBtn.addEventListener('click', () => {
+        addUrlInput('');
+      });
+    }
     campaignSelect.addEventListener('change', (e) => {
       saveCurrentUrlsToActiveCampaign();
       activeCampaign = e.target.value;
