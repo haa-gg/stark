@@ -252,7 +252,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         } catch (e) {
           console.error(e);
           oauthLoginBtn.textContent = 'Sign in with Google';
-          alert('Login failed: ' + e.message);
+          alert('Login failed: ' + (e.message || e));
         }
       });
 

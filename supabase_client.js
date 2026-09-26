@@ -95,7 +95,7 @@ class SupabaseService {
       ...profileData
     };
 
-    return this.fetchApi('/rest/v1/profiles', {
+    return this.fetchApi('/rest/v1/profiles?on_conflict=id', {
       method: 'POST',
       headers: {
         'Prefer': 'resolution=merge-duplicates'
