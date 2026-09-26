@@ -211,6 +211,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   const saveBtn = document.getElementById('save-settings');
+  const logoffBtn = document.getElementById('logoff-btn');
   const connectGoogleBtn = document.getElementById('connect-google-btn');
   const disconnectGoogleBtn = document.getElementById('disconnect-google-btn');
   const googleAuthStatus = document.getElementById('google-auth-status');
@@ -549,6 +550,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         apiKeyInput.type = 'password';
         toggleApiKeyBtn.textContent = 'Show';
       }
+    });
+  }
+
+  if (logoffBtn) {
+    logoffBtn.addEventListener('click', () => {
+      chrome.storage.sync.clear(() => {
+        chrome.storage.local.clear(() => {
+          window.location.reload();
+        });
+      });
     });
   }
 
