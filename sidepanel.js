@@ -144,7 +144,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   async function getStoredToken() {
-    const s = await chrome.storage.local.get(['googleToken', 'googleTokenExpiry']);
+    const s = await chrome.storage.sync.get(['googleToken', 'googleTokenExpiry']);
     if (s.googleToken && s.googleTokenExpiry && Date.now() < s.googleTokenExpiry) {
       return s.googleToken;
     }
@@ -171,7 +171,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const expiresIn = parseInt(params.get('expires_in') || '3600');
         if (!token) { reject(new Error('No access token received')); return; }
         // Cache token, expire 60s early to avoid edge cases
-        chrome.storage.local.set({
+        chrome.storage.sync.set({
           googleToken: token,
           googleTokenExpiry: Date.now() + (expiresIn - 60) * 1000
         });
@@ -197,7 +197,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   disconnectGoogleBtn.addEventListener('click', () => {
-    chrome.storage.local.remove(['googleToken', 'googleTokenExpiry']);
+    chrome.storage.sync.remove(['googleToken', 'googleTokenExpiry']);
     updateAuthUI(false);
     lastSynced = 0;
   });
@@ -274,7 +274,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     'pf2etools_data/data/variantrules.json'
   ]).then(text => { gmCoreText = text; });
 
-  const data = await chrome.storage.local.get(['apiKey', 'notesUrl', 'pbUrls', 'lightMode', 'routingMode', 'providerOrder', 'providerConfigs', 'apiProvider', 'fallbackApiKey', 'baseUrl', 'modelId']);
+  const data = await chrome.storage.sync.get(['apiKey', 'notesUrl', 'pbUrls', 'lightMode', 'routingMode', 'providerOrder', 'providerConfigs', 'apiProvider', 'fallbackApiKey', 'baseUrl', 'modelId']);
   
   // Migrate legacy single-provider settings to providerStack config if it doesn't exist
   if (!data.providerOrder) {
@@ -340,7 +340,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     } else {
       document.body.classList.remove('light-mode');
     }
-    chrome.storage.local.set({ lightMode: e.target.checked });
+    chrome.storage.sync.set({ lightMode: e.target.checked });
   });
 
   if (data.routingMode) {
@@ -442,7 +442,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     };
 
-    chrome.storage.local.set({
+    chrome.storage.sync.set({
       apiKey: apiKeyInput.value.trim(),
       providerOrder: currentOrder,
       providerConfigs: newConfigs,
@@ -518,7 +518,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       return { notesText: cachedNotesText, charactersText: cachedCharactersText };
     }
 
-    const data = await chrome.storage.local.get(['notesUrl', 'pbUrls']);
+    const data = await chrome.storage.sync.get(['notesUrl', 'pbUrls']);
     let tempNotes = "No campaign notes provided.";
     let tempChars = "No character sheets provided.";
 
@@ -538,7 +538,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 { headers: { 'Authorization': `Bearer ${token}` } }
               );
               if (res.status === 401) {
-                chrome.storage.local.remove(['googleToken', 'googleTokenExpiry']);
+                chrome.storage.sync.remove(['googleToken', 'googleTokenExpiry']);
                 updateAuthUI(false);
                 throw new Error('Google token expired. Please reconnect in settings.');
               }
@@ -726,7 +726,7 @@ Example: ["core", "campaign", "chars"]`;
     chatMessages.appendChild(loadingDiv);
     chatMessages.scrollTop = chatMessages.scrollHeight;
 
-    const data = await chrome.storage.local.get(['apiKey', 'providerOrder', 'providerConfigs', 'routingMode']);
+    const data = await chrome.storage.sync.get(['apiKey', 'providerOrder', 'providerConfigs', 'routingMode']);
     if (!data.apiKey && (!data.providerOrder || data.providerOrder[0] === 'gemini')) {
       loadingDiv.textContent = "Error: API Key is missing. Please configure settings.";
       chatInput.disabled = false;

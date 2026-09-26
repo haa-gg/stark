@@ -313,7 +313,7 @@ button:hover {
   flex-grow: 1;
   font-weight: bold;
   font-size: 13px;
-  color: #fff;
+  color: var(--text-main);
 }
 
 .provider-edit-btn {
