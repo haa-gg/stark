@@ -225,10 +225,36 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     oauthLoginBtn.addEventListener('click', async () => {
-      oauthLoginBtn.textContent = 'Authenticating...';
-      try {
-        await connectGoogle();
-        chrome.storage.sync.set({ onboardingComplete: true });
+        oauthLoginBtn.textContent = 'Authenticating with Cloud...';
+        try {
+          await window.supabase.signInWithGoogle();
+          const userId = window.supabase.getUserId();
+          if (userId) {
+            // Fetch their existing profile from Supabase
+            const profile = await window.supabase.getProfile(userId);
+            if (profile) {
+              // Populate local storage with cloud data
+              await chrome.storage.sync.set({
+                apiKey: profile.api_key || '',
+                providerOrder: profile.provider_order || ['gemini'],
+                campaigns: profile.campaigns || {},
+                activeCampaign: profile.active_campaign || 'Default Campaign',
+                onboardingComplete: true
+              });
+            } else {
+              chrome.storage.sync.set({ onboardingComplete: true });
+            }
+          }
+          
+          loginView.classList.add('hidden');
+          settingsView.classList.remove('hidden');
+          window.location.reload(); // Reload to populate UI with new cloud data
+        } catch (e) {
+          console.error(e);
+          oauthLoginBtn.textContent = 'Sign in with Google';
+          alert('Login failed: ' + e.message);
+        }
+      });
         loginView.classList.add('hidden');
         settingsView.classList.remove('hidden');
       } catch (e) {
@@ -581,7 +607,29 @@ document.addEventListener('DOMContentLoaded', async () => {
     };
 
     saveCurrentUrlsToActiveCampaign();
-      chrome.storage.sync.set({
+      
+      const payloadToSave = {
+        apiKey: apiKeyInput.value.trim(),
+        providerOrder: currentOrder,
+        providerConfigs: newConfigs,
+        campaigns: campaigns,
+        activeCampaign: activeCampaign,
+        pbUrls: pbUrlsInput.value.trim(),
+        routingMode: routingModeSelect.value
+      };
+
+      // Push to Supabase if logged in
+      const userId = window.supabase.getUserId();
+      if (userId) {
+        window.supabase.upsertProfile(userId, {
+          api_key: payloadToSave.apiKey,
+          provider_order: payloadToSave.providerOrder,
+          campaigns: payloadToSave.campaigns,
+          active_campaign: payloadToSave.activeCampaign
+        }).catch(e => console.error("Failed to sync to Supabase:", e));
+      }
+
+      chrome.storage.sync.set(payloadToSave, () => {
         apiKey: apiKeyInput.value.trim(),
         providerOrder: currentOrder,
         providerConfigs: newConfigs,
