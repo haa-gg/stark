@@ -3,6 +3,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   
   const settingsView = document.getElementById('settings-view');
   const chatView = document.getElementById('chat-view');
+  const loginView = document.getElementById('login-view');
+  const getStartedBtn = document.getElementById('get-started-btn');
+  const oauthLoginBtn = document.getElementById('oauth-login-btn');
   
   const closeSettingsBtn = document.getElementById('close-settings');
   const themeToggle = document.getElementById('theme-toggle');
@@ -206,6 +209,26 @@ document.addEventListener('DOMContentLoaded', async () => {
   const connectGoogleBtn = document.getElementById('connect-google-btn');
   const disconnectGoogleBtn = document.getElementById('disconnect-google-btn');
   const googleAuthStatus = document.getElementById('google-auth-status');
+
+  // --- Login / Onboarding Logic ---
+  if (getStartedBtn && oauthLoginBtn) {
+    getStartedBtn.addEventListener('click', () => {
+      loginView.classList.add('hidden');
+      settingsView.classList.remove('hidden');
+    });
+
+    oauthLoginBtn.addEventListener('click', async () => {
+      oauthLoginBtn.textContent = 'Authenticating...';
+      try {
+        await connectGoogle();
+        loginView.classList.add('hidden');
+        settingsView.classList.remove('hidden');
+      } catch (e) {
+        console.error(e);
+        oauthLoginBtn.textContent = 'Sign in with Google';
+      }
+    });
+  }
 
   // --- Google OAuth (launchWebAuthFlow) ---
   const GOOGLE_CLIENT_ID = '515316118504-qv16sobfp87betbblf6pt3cq007g0ei2.apps.googleusercontent.com';
@@ -491,7 +514,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   pbUrlsInput.value = data.pbUrls || '';
 
-  if (data.apiKey) {
+  if (data.apiKey || (data.providerConfigs && data.providerConfigs.local && data.providerConfigs.local.url)) {
+    if (loginView) loginView.classList.add('hidden');
     settingsView.classList.add('hidden');
     chatView.classList.remove('hidden');
     applyRoutingUI();
