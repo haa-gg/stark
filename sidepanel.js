@@ -381,27 +381,40 @@ document.addEventListener('DOMContentLoaded', async () => {
     return combinedText;
   }
 
-  // Load the core datasets natively as JSON
-  loadPf2eJson([
-    'pf2etools_data/data/spells/spells-crb.json',
-    'pf2etools_data/data/spells/spells-pc1.json',
-    'pf2etools_data/data/actions.json',
-    'pf2etools_data/data/conditions.json',
-    'pf2etools_data/data/skills.json'
-  ]).then(text => { rulebookText = text; });
-
-  loadPf2eJson([
-    'pf2etools_data/data/spells/spells-apg.json',
-    'pf2etools_data/data/spells/spells-pc2.json',
-    'pf2etools_data/data/archetypes.json'
-  ]).then(text => { apgText = text; });
-
-  loadPf2eJson([
-    'pf2etools_data/data/hazards.json',
-    'pf2etools_data/data/variantrules.json'
-  ]).then(text => { gmCoreText = text; });
-
   const data = await chrome.storage.sync.get(['onboardingComplete', 'apiKey', 'campaigns', 'activeCampaign', 'notesUrl', 'pbUrls', 'lightMode', 'routingMode', 'gameSystem', 'providerOrder', 'providerConfigs', 'apiProvider', 'fallbackApiKey', 'baseUrl', 'modelId']);
+
+  const sys = data.gameSystem || 'pf2e';
+  
+  if (sys === 'pf2e') {
+    loadPf2eJson([
+      'pf2etools_data/data/spells/spells-crb.json',
+      'pf2etools_data/data/spells/spells-pc1.json',
+      'pf2etools_data/data/actions.json',
+      'pf2etools_data/data/conditions.json',
+      'pf2etools_data/data/skills.json'
+    ]).then(text => { rulebookText = text; });
+
+    loadPf2eJson([
+      'pf2etools_data/data/spells/spells-apg.json',
+      'pf2etools_data/data/spells/spells-pc2.json',
+      'pf2etools_data/data/archetypes.json'
+    ]).then(text => { apgText = text; });
+
+    loadPf2eJson([
+      'pf2etools_data/data/hazards.json',
+      'pf2etools_data/data/variantrules.json'
+    ]).then(text => { gmCoreText = text; });
+  } else {
+    // Load D&D 5e/5.5e SRD
+    loadPf2eJson([
+      'dnd5e_data/data/spells.json',
+      'dnd5e_data/data/races.json',
+      'dnd5e_data/data/skills.json',
+      'dnd5e_data/data/startingEquipment.json',
+      'dnd5e_data/data/subclasses.json',
+      'dnd5e_data/data/traits.json'
+    ]).then(text => { rulebookText = text; apgText = ''; gmCoreText = ''; });
+  }
   
     if (data.onboardingComplete) {
     if (loginView) loginView.classList.add('hidden');

@@ -32,7 +32,8 @@
     {
       "resources": [
         "pf2etools_data/data/*.json",
-        "pf2etools_data/data/*/*.json"
+        "pf2etools_data/data/*/*.json",
+        "dnd5e_data/data/*.json"
       ],
       "matches": [
         "<all_urls>"
