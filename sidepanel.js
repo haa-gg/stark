@@ -401,7 +401,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     'pf2etools_data/data/variantrules.json'
   ]).then(text => { gmCoreText = text; });
 
-  const data = await chrome.storage.sync.get(['onboardingComplete', 'apiKey', 'campaigns', 'activeCampaign', 'notesUrl', 'pbUrls', 'lightMode', 'routingMode', 'providerOrder', 'providerConfigs', 'apiProvider', 'fallbackApiKey', 'baseUrl', 'modelId']);
+  const data = await chrome.storage.sync.get(['onboardingComplete', 'apiKey', 'campaigns', 'activeCampaign', 'notesUrl', 'pbUrls', 'lightMode', 'routingMode', 'gameSystem', 'providerOrder', 'providerConfigs', 'apiProvider', 'fallbackApiKey', 'baseUrl', 'modelId']);
   
     if (data.onboardingComplete) {
     if (loginView) loginView.classList.add('hidden');
@@ -551,6 +551,19 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   pbUrlsInput.value = data.pbUrls || '';
+  
+  gameSystemSelect.value = data.gameSystem || 'pf2e';
+  function updateCharacterUI() {
+    if (gameSystemSelect.value === 'pf2e') {
+      characterUrlsLabel.textContent = 'Pathbuilder JSON URLs';
+      pbUrlsInput.placeholder = 'https://pathbuilder2e.com/json.php?id=123456 (one per line)';
+    } else {
+      characterUrlsLabel.textContent = 'D&D Beyond Character URLs';
+      pbUrlsInput.placeholder = 'https://www.dndbeyond.com/characters/12345678 (one per line)';
+    }
+  }
+  updateCharacterUI();
+  gameSystemSelect.addEventListener('change', updateCharacterUI);
 
   if (data.apiKey || (data.providerOrder && data.providerOrder[0] === 'local')) {
     if (loginView) loginView.classList.add('hidden');
@@ -611,7 +624,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         campaigns: campaigns,
         activeCampaign: activeCampaign,
         pbUrls: pbUrlsInput.value.trim(),
-        routingMode: routingModeSelect.value
+        routingMode: routingModeSelect.value,
+        gameSystem: gameSystemSelect.value
       };
 
       // Push to Supabase if logged in
@@ -746,13 +760,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (data.pbUrls) {
       const urls = data.pbUrls.split('\n').map(u => u.trim()).filter(u => u);
       let chars = [];
+      const activeSys = data.gameSystem || 'pf2e';
+      
       for (const url of urls) {
         try {
-          const res = await fetch(url);
-          const json = await res.json();
-          chars.push(JSON.stringify(json, null, 2));
+          if (activeSys === 'dnd5e') {
+            const md = await window.parseDndBeyondCharacter(url);
+            chars.push(md);
+          } else {
+            const res = await fetch(url);
+            const json = await res.json();
+            chars.push(JSON.stringify(json, null, 2));
+          }
         } catch(e) {
-          console.error('Error fetching pathbuilder json for ' + url, e);
+          console.error('Error fetching character data for ' + url, e);
         }
       }
       if (chars.length > 0) tempChars = chars.join('\n\n---\n\n');
