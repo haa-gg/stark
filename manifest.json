@@ -6,7 +6,9 @@
   "permissions": [
     "sidePanel",
     "storage",
-    "identity"
+    "identity",
+    "tabs",
+    "scripting"
   ],
   "host_permissions": [
     "https://*.google.com/*",

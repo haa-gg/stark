@@ -463,24 +463,44 @@ document.addEventListener('DOMContentLoaded', async () => {
   const routingModeSelect = document.getElementById('routing-mode');
   const manualRoutingOptions = document.getElementById('manual-routing-options');
   
-  // Build manual checkboxes
-  CONTEXT_SOURCES.forEach(source => {
-    const label = document.createElement('label');
-    label.style.display = 'flex';
-    label.style.alignItems = 'center';
-    label.style.gap = '4px';
-    label.style.cursor = 'pointer';
+    // Build manual checkboxes
+  function renderManualSources() {
+    manualRoutingOptions.innerHTML = '';
+    let sources = [];
+    if (gameSystemSelect.value === 'pf2e') {
+      sources = [
+        { id: "core", label: "Core Rulebook" },
+        { id: "apg", label: "APG" },
+        { id: "gm_core", label: "GM Core" },
+        { id: "campaign", label: "Notes" },
+        { id: "chars", label: "Characters" }
+      ];
+    } else {
+      sources = [
+        { id: "core", label: "5e SRD" },
+        { id: "campaign", label: "Notes" },
+        { id: "chars", label: "Characters" }
+      ];
+    }
     
-    const checkbox = document.createElement('input');
-    checkbox.type = 'checkbox';
-    checkbox.value = source.id;
-    checkbox.checked = true; // default all checked
-    checkbox.className = 'manual-source-cb';
-    
-    label.appendChild(checkbox);
-    label.appendChild(document.createTextNode(source.label));
-    manualRoutingOptions.appendChild(label);
-  });
+    sources.forEach(source => {
+      const label = document.createElement('label');
+      label.style.display = 'flex';
+      label.style.alignItems = 'center';
+      label.style.gap = '4px';
+      label.style.cursor = 'pointer';
+      
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.value = source.id;
+      checkbox.checked = true; // default all checked
+      checkbox.className = 'manual-source-cb';
+      
+      label.appendChild(checkbox);
+      label.appendChild(document.createTextNode(source.label));
+      manualRoutingOptions.appendChild(label);
+    });
+  }
   
   // Apply theme
   if (data.lightMode) {
@@ -773,7 +793,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       
       for (const url of urls) {
         try {
-          if (activeSys === 'dnd5e') {
+          if (activeSys === 'dnd5e' || activeSys === 'dnd55e') {
             const md = await window.parseDndBeyondCharacter(url);
             chars.push(md);
           } else {
