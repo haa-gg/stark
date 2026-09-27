@@ -1,0 +1,10 @@
+# Normalize all line endings to LF on checkout
+* text=auto eol=lf
+
+# Explicitly treat these as binary
+*.png binary
+*.jpg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
