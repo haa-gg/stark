@@ -557,9 +557,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (gameSystemSelect.value === 'pf2e') {
       characterUrlsLabel.textContent = 'Pathbuilder JSON URLs';
       pbUrlsInput.placeholder = 'https://pathbuilder2e.com/json.php?id=123456 (one per line)';
+      if (pbUrlsInput.value.includes('dndbeyond.com')) pbUrlsInput.value = '';
     } else {
       characterUrlsLabel.textContent = 'D&D Beyond Character URLs';
       pbUrlsInput.placeholder = 'https://www.dndbeyond.com/characters/12345678 (one per line)';
+      if (pbUrlsInput.value.includes('pathbuilder2e.com')) pbUrlsInput.value = '';
     }
   }
   updateCharacterUI();
