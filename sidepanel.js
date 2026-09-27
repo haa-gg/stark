@@ -345,14 +345,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   const tokenMeterBar = document.getElementById('token-meter-bar');
   const tokenMeterText = document.getElementById('token-meter-text');
 
-  const CONTEXT_SOURCES = [
-    { id: "core", label: "Core" },
-    { id: "apg", label: "APG" },
-    { id: "gm_core", label: "GM Core" },
-    { id: "campaign", label: "Notes" },
-    { id: "chars", label: "Characters" }
-  ];
-
   let rulebookText = "";
   let apgText = "";
   let gmCoreText = "";
@@ -576,6 +568,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       pbUrlsInput.placeholder = 'https://www.dndbeyond.com/characters/12345678 (one per line)';
       if (pbUrlsInput.value.includes('pathbuilder2e.com')) pbUrlsInput.value = '';
     }
+    if (typeof renderManualSources === 'function') renderManualSources();
+    if (typeof renderManualSources === 'function') renderManualSources();
   }
   updateCharacterUI();
   gameSystemSelect.addEventListener('change', updateCharacterUI);
@@ -987,10 +981,11 @@ Example: ["core", "campaign", "chars"]`;
         relevantRules = getRelevantChunks(combinedRules, text, 15000);
       }
 
-      const systemInstruction = `You are Stark, an AI Game Master assistant for a Pathfinder 2e campaign. 
-Use the provided context to ground your mechanics, but you are highly encouraged to synthesize this information, make logical inferences, and offer strategic advice/recommendations to the player based on Pathfinder 2e rules.
+      const sysName = data.gameSystem === 'pf2e' ? 'Pathfinder 2e' : 'D&D 5e';
+      const systemInstruction = `You are Stark, an AI Game Master assistant for a ${sysName} campaign. 
+Use the provided context to ground your mechanics, but you are highly encouraged to synthesize this information, make logical inferences, and offer strategic advice/recommendations to the player based on ${sysName} rules.
 CRITICAL INSTRUCTION: Do NOT use any emojis in your responses. Keep the tone serious and professional.
-The context below contains extracted relevant paragraphs from Pathfinder 2e rulebooks, the campaign notes, and the players' character sheets.
+The context below contains extracted relevant paragraphs from ${sysName} rulebooks, the campaign notes, and the players' character sheets.
 
 --- CAMPAIGN NOTES ---
 ${notesText}

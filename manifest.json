@@ -15,6 +15,7 @@
     "https://docs.googleapis.com/*",
     "https://api.groq.com/*",
     "https://*.pathbuilder2e.com/*",
+    "https://*.dndbeyond.com/*",
     "http://localhost/*",
     "http://127.0.0.1/*",
     "https://api.openai.com/*"
