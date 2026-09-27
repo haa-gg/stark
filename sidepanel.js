@@ -104,6 +104,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   const toggleApiKeyBtn = document.getElementById('toggle-api-key');
   const toggleFallbackApiKeyBtn = document.getElementById('toggle-fallback-api-key');
     const pbUrlsInput = document.getElementById('pb-urls');
+  const gameSystemSelect = document.getElementById('game-system');
+  const characterUrlsLabel = document.getElementById('character-urls-label');
 
   // --- Campaign UI Elements ---
   const campaignSelect = document.getElementById('campaign-select');
