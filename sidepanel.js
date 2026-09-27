@@ -103,9 +103,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const apiKeyInput = document.getElementById('api-key');
   const toggleApiKeyBtn = document.getElementById('toggle-api-key');
   const toggleFallbackApiKeyBtn = document.getElementById('toggle-fallback-api-key');
-    const pbUrlsInput = document.getElementById('pb-urls');
-  const gameSystemSelect = document.getElementById('game-system');
-  const characterUrlsLabel = document.getElementById('character-urls-label');
+  const pbUrlsInput = document.getElementById('pb-urls');
   const gameSystemSelect = document.getElementById('game-system');
   const characterUrlsLabel = document.getElementById('character-urls-label');
 
