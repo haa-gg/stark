@@ -118,7 +118,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const notesUrlsContainer = document.getElementById('notes-urls-container');
   const addNotesUrlBtn = document.getElementById('add-notes-url-btn');
   
-  let campaigns = { "Default Campaign": [] };
+  let campaigns = { "Default Campaign": { urls: [], gameSystem: "pf2e", pbUrls: "" } };
   let activeCampaign = "Default Campaign";
 
   function renderCampaignOptions() {
@@ -135,7 +135,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function renderUrls() {
     notesUrlsContainer.innerHTML = '';
-    const urls = campaigns[activeCampaign] || [];
+    const urls = campaigns[activeCampaign]?.urls || [];
     urls.forEach(u => addUrlInput(u));
     // Only render saved URLs
   }
@@ -164,7 +164,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   function saveCurrentUrlsToActiveCampaign() {
     const inputs = document.querySelectorAll('.notes-url-input');
     const urls = Array.from(inputs).map(i => i.value.trim()).filter(v => v);
-    campaigns[activeCampaign] = urls;
+    if (!campaigns[activeCampaign]) campaigns[activeCampaign] = { urls: [], gameSystem: "pf2e", pbUrls: "" };
+    campaigns[activeCampaign].urls = urls;
+    campaigns[activeCampaign].gameSystem = gameSystemSelect.value;
+    campaigns[activeCampaign].pbUrls = pbUrlsInput.value.trim();
   }
 
   if (campaignSelect) {
@@ -176,6 +179,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     campaignSelect.addEventListener('change', (e) => {
       saveCurrentUrlsToActiveCampaign();
       activeCampaign = e.target.value;
+      
+      const c = campaigns[activeCampaign];
+      if (c) {
+        gameSystemSelect.value = c.gameSystem || 'pf2e';
+        pbUrlsInput.value = c.pbUrls || '';
+        if (typeof updateCharacterUI === 'function') updateCharacterUI();
+      }
+      
       renderUrls();
     });
 
@@ -193,7 +204,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const name = newCampaignNameInput.value.trim();
       if (name && !campaigns[name]) {
         saveCurrentUrlsToActiveCampaign();
-        campaigns[name] = [];
+        campaigns[name] = { urls: [], gameSystem: gameSystemSelect.value, pbUrls: pbUrlsInput.value.trim() };
         activeCampaign = name;
         renderCampaignOptions();
         renderUrls();
@@ -419,10 +430,21 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (data.campaigns) {
     campaigns = data.campaigns;
     activeCampaign = data.activeCampaign || Object.keys(campaigns)[0];
+    
+    // Migrate old array campaigns to object campaigns
+    for (const key in campaigns) {
+      if (Array.isArray(campaigns[key])) {
+        campaigns[key] = {
+          urls: campaigns[key],
+          gameSystem: data.gameSystem || 'pf2e',
+          pbUrls: data.pbUrls || ''
+        };
+      }
+    }
   } else {
     // Migration from old single-campaign setup
     const oldUrls = data.notesUrl ? data.notesUrl.split('\n').map(u => u.trim()).filter(u => u) : [];
-    campaigns = { "Default Campaign": oldUrls };
+    campaigns = { "Default Campaign": { urls: oldUrls, gameSystem: data.gameSystem || 'pf2e', pbUrls: data.pbUrls || '' } };
     activeCampaign = "Default Campaign";
   }
   if (campaignSelect) {
@@ -744,8 +766,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     let tempChars = "No character sheets provided.";
 
     if (data.campaigns && data.activeCampaign && data.campaigns[data.activeCampaign]) {
-        const urls = data.campaigns[data.activeCampaign];
-      if (urls.length > 0) {
+        const urls = data.campaigns[data.activeCampaign].urls || []; if (urls.length > 0) {
         try {
           const token = await getStoredToken();
           const docPromises = urls.map(async (url, index) => {
@@ -1278,4 +1299,5 @@ ${relevantRules}
     });
   }
 });
+
 
