@@ -597,9 +597,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  pbUrlsInput.value = data.pbUrls || '';
+  const activeCampData = campaigns[activeCampaign] || {};
+  pbUrlsInput.value = activeCampData.pbUrls !== undefined ? activeCampData.pbUrls : (data.pbUrls || '');
   
-  gameSystemSelect.value = data.gameSystem || 'pf2e';
+  gameSystemSelect.value = activeCampData.gameSystem !== undefined ? activeCampData.gameSystem : (data.gameSystem || 'pf2e');
   function updateCharacterUI() {
     if (gameSystemSelect.value === 'pf2e') {
       characterUrlsLabel.textContent = 'Pathbuilder JSON URLs';
