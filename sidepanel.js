@@ -384,40 +384,34 @@ document.addEventListener('DOMContentLoaded', async () => {
     return combinedText;
   }
 
-  const data = await chrome.storage.sync.get(['onboardingComplete', 'apiKey', 'campaigns', 'activeCampaign', 'notesUrl', 'pbUrls', 'lightMode', 'routingMode', 'gameSystem', 'providerOrder', 'providerConfigs', 'apiProvider', 'fallbackApiKey', 'baseUrl', 'modelId']);
+  const data = await chrome.storage.sync.get(['onboardingComplete', 'apiKey', 'campaigns', 'activeCampaign', 'notesUrl', 'pbUrls', 'lightMode', 'routingMode', 'gameSystem', 'providerOrder', 'providerConfigs', 'apiProvider', 'fallbackApiKey', 'baseUrl', 'modelId', 'googleToken', 'googleTokenExpiry']);
 
-  const sys = data.gameSystem || 'pf2e';
-  
-  if (sys === 'pf2e') {
-    loadPf2eJson([
-      'pf2etools_data/data/spells/spells-crb.json',
-      'pf2etools_data/data/spells/spells-pc1.json',
-      'pf2etools_data/data/actions.json',
-      'pf2etools_data/data/conditions.json',
-      'pf2etools_data/data/skills.json'
-    ]).then(text => { rulebookText = text; });
-
-    loadPf2eJson([
-      'pf2etools_data/data/spells/spells-apg.json',
-      'pf2etools_data/data/spells/spells-pc2.json',
-      'pf2etools_data/data/archetypes.json'
-    ]).then(text => { apgText = text; });
-
-    loadPf2eJson([
-      'pf2etools_data/data/hazards.json',
-      'pf2etools_data/data/variantrules.json'
-    ]).then(text => { gmCoreText = text; });
-  } else {
-    // Load D&D 5e/5.5e SRD
-    loadPf2eJson([
-      'dnd5e_data/data/spells.json',
-      'dnd5e_data/data/races.json',
-      'dnd5e_data/data/skills.json',
-      'dnd5e_data/data/startingEquipment.json',
-      'dnd5e_data/data/subclasses.json',
-      'dnd5e_data/data/traits.json'
-    ]).then(text => { rulebookText = text; apgText = ''; gmCoreText = ''; });
+  let rulebooksPromise = null;
+  function ensureRulebooksLoaded() {
+    if (!rulebooksPromise) {
+      rulebooksPromise = Promise.all([
+        loadPf2eJson([
+          'pf2etools_data/data/spells/spells-crb.json',
+          'pf2etools_data/data/spells/spells-pc1.json',
+          'pf2etools_data/data/actions.json',
+          'pf2etools_data/data/conditions.json',
+          'pf2etools_data/data/skills.json'
+        ]).then(text => { rulebookText = text; }),
+        loadPf2eJson([
+          'pf2etools_data/data/spells/spells-apg.json',
+          'pf2etools_data/data/spells/spells-pc2.json',
+          'pf2etools_data/data/archetypes.json'
+        ]).then(text => { apgText = text; }),
+        loadPf2eJson([
+          'pf2etools_data/data/hazards.json',
+          'pf2etools_data/data/variantrules.json'
+        ]).then(text => { gmCoreText = text; })
+      ]);
+    }
+    return rulebooksPromise;
   }
+  // Schedule background loading after the UI renders immediately
+  setTimeout(ensureRulebooksLoaded, 100);
   
     if (data.onboardingComplete) {
     if (loginView) loginView.classList.add('hidden');
@@ -617,7 +611,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // Restore auth UI state
-  const storedToken = await getStoredToken();
+  const storedToken = (data.googleToken && data.googleTokenExpiry && Date.now() < data.googleTokenExpiry) ? data.googleToken : null;
   updateAuthUI(!!storedToken);
 
   if (toggleApiKeyBtn) {
@@ -1005,6 +999,7 @@ Example: ["core", "campaign", "chars"]`;
       }
       
       loadingDiv.textContent = 'Thinking... (running local search over rulebooks)';
+      await ensureRulebooksLoaded();
       let combinedRules = "";
       if (route.includes("core")) combinedRules += rulebookText + "\n";
       if (route.includes("apg")) combinedRules += apgText + "\n";
