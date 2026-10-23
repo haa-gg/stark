@@ -602,20 +602,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   
   gameSystemSelect.value = activeCampData.gameSystem !== undefined ? activeCampData.gameSystem : (data.gameSystem || 'pf2e');
   function updateCharacterUI() {
-    if (gameSystemSelect.value === 'pf2e') {
-      characterUrlsLabel.textContent = 'Pathbuilder JSON URLs';
-      pbUrlsInput.placeholder = 'https://pathbuilder2e.com/json.php?id=123456 (one per line)';
-      if (pbUrlsInput.value.includes('dndbeyond.com')) pbUrlsInput.value = '';
-    } else {
-      characterUrlsLabel.textContent = 'D&D Beyond Character URLs';
-      pbUrlsInput.placeholder = 'https://www.dndbeyond.com/characters/12345678 (one per line)';
-      if (pbUrlsInput.value.includes('pathbuilder2e.com')) pbUrlsInput.value = '';
-    }
-    if (typeof renderManualSources === 'function') renderManualSources();
+    characterUrlsLabel.textContent = 'Pathbuilder JSON URLs';
+    pbUrlsInput.placeholder = 'https://pathbuilder2e.com/json.php?id=123456 (one per line)';
     if (typeof renderManualSources === 'function') renderManualSources();
   }
   updateCharacterUI();
-  gameSystemSelect.addEventListener('change', updateCharacterUI);
+  if (gameSystemSelect) gameSystemSelect.addEventListener('change', updateCharacterUI);
 
   if (data.apiKey || (data.providerOrder && data.providerOrder[0] === 'local')) {
     if (loginView) loginView.classList.add('hidden');
