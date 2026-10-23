@@ -384,7 +384,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     return combinedText;
   }
 
-  const data = await chrome.storage.sync.get(['onboardingComplete', 'apiKey', 'campaigns', 'activeCampaign', 'notesUrl', 'pbUrls', 'lightMode', 'routingMode', 'gameSystem', 'providerOrder', 'providerConfigs', 'apiProvider', 'fallbackApiKey', 'baseUrl', 'modelId', 'googleToken', 'googleTokenExpiry']);
+  const data = await chrome.storage.sync.get(['onboardingComplete', 'apiKey', 'campaigns', 'activeCampaign', 'notesUrl', 'pbUrls', 'lightMode', 'fontScale', 'routingMode', 'gameSystem', 'providerOrder', 'providerConfigs', 'apiProvider', 'fallbackApiKey', 'baseUrl', 'modelId', 'googleToken', 'googleTokenExpiry']);
 
   let rulebooksPromise = null;
   function ensureRulebooksLoaded() {
@@ -533,6 +533,27 @@ document.addEventListener('DOMContentLoaded', async () => {
     chrome.storage.sync.set({ lightMode: e.target.checked });
   });
 
+  // Apply font scale
+  const fontScaleSlider = document.getElementById('font-scale-slider');
+  const fontScaleVal = document.getElementById('font-scale-val');
+
+  function setFontScale(scalePercent) {
+    const pct = parseInt(scalePercent, 10) || 100;
+    document.documentElement.style.setProperty('--font-scale', pct / 100);
+    if (fontScaleSlider) fontScaleSlider.value = pct;
+    if (fontScaleVal) fontScaleVal.textContent = pct + '%';
+  }
+
+  setFontScale(data.fontScale || 100);
+
+  if (fontScaleSlider) {
+    fontScaleSlider.addEventListener('input', (e) => {
+      const val = parseInt(e.target.value, 10);
+      setFontScale(val);
+      chrome.storage.sync.set({ fontScale: val });
+    });
+  }
+
   if (data.routingMode) {
     routingModeSelect.value = data.routingMode;
   } else {
@@ -663,7 +684,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         activeCampaign: activeCampaign,
         pbUrls: pbUrlsInput.value.trim(),
         routingMode: routingModeSelect.value,
-        gameSystem: gameSystemSelect.value
+        gameSystem: gameSystemSelect.value,
+        fontScale: fontScaleSlider ? parseInt(fontScaleSlider.value, 10) : 100
       };
 
       // Push to Supabase if logged in

@@ -48,6 +48,14 @@
       <input type="checkbox" id="theme-toggle" style="width: auto; cursor: pointer;">
     </div>
 
+    <div class="input-group" style="background: var(--panel-bg); padding: 10px; border-radius: 4px; border: 1px solid var(--border-color);">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+        <label for="font-scale-slider" style="margin: 0; cursor: pointer;">Font Size</label>
+        <span id="font-scale-val" style="font-size: 13px; font-weight: bold; color: var(--accent-gold);">100%</span>
+      </div>
+      <input type="range" id="font-scale-slider" min="90" max="160" step="5" value="100" style="width: 100%; cursor: pointer;">
+    </div>
+
     <div class="input-group">
       <label>Gemini API Key</label>
       <div style="display: flex; gap: 5px; margin-bottom: 5px;">

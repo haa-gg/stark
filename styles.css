@@ -8,6 +8,7 @@
   --meter-safe: #28a745;
   --meter-warn: #ffc107;
   --meter-danger: #dc3545;
+  --font-scale: 1;
 }
 
 body.light-mode {
@@ -23,7 +24,7 @@ body {
   margin: 0;
   padding: 0;
   font-family: 'IM Fell DW Pica', serif;
-  font-size: 115%;
+  font-size: calc(115% * var(--font-scale, 1));
   letter-spacing: 0.05em;
   background-color: var(--bg-color);
   color: var(--text-main);
@@ -128,7 +129,7 @@ button:hover {
   word-break: break-word;
   white-space: pre-wrap;
   overflow-wrap: break-word;
-  font-size: 13px;
+  font-size: calc(13px * var(--font-scale, 1));
 }
 
 .message.user {
@@ -153,6 +154,7 @@ button:hover {
   flex-grow: 1;
   height: 40px;
   resize: none;
+  font-size: calc(13px * var(--font-scale, 1));
 }
 
 #token-meter-container {
