@@ -43,18 +43,24 @@
       <button id="close-settings" title="Close Settings" style="background: transparent; color: var(--text-main); font-size: 20px; padding: 0;">✖</button>
     </div>
     
-    <div class="input-group" style="display: flex; justify-content: space-between; align-items: center; background: var(--panel-bg); padding: 10px; border-radius: 4px; border: 1px solid var(--border-color);">
-      <label style="margin: 0; cursor: pointer;" for="theme-toggle">Light Mode</label>
-      <input type="checkbox" id="theme-toggle" style="width: auto; cursor: pointer;">
-    </div>
+    <details style="margin-bottom: 15px; background: var(--panel-bg); padding: 10px; border-radius: 4px; border: 1px solid var(--border-color);">
+      <summary style="cursor: pointer; font-weight: bold; font-size: 14px; user-select: none;">Look & Feel</summary>
+      
+      <div style="margin-top: 10px; display: flex; flex-direction: column; gap: 12px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 8px; border-bottom: 1px solid var(--border-color);">
+          <label style="margin: 0; cursor: pointer;" for="theme-toggle">Light Mode</label>
+          <input type="checkbox" id="theme-toggle" style="width: auto; cursor: pointer;">
+        </div>
 
-    <div class="input-group" style="background: var(--panel-bg); padding: 10px; border-radius: 4px; border: 1px solid var(--border-color);">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-        <label for="font-scale-slider" style="margin: 0; cursor: pointer;">Font Size</label>
-        <span id="font-scale-val" style="font-size: 13px; font-weight: bold; color: var(--accent-gold);">100%</span>
+        <div>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <label for="font-scale-slider" style="margin: 0; cursor: pointer;">Font Size</label>
+            <span id="font-scale-val" style="font-size: 13px; font-weight: bold; color: var(--accent-gold);">100%</span>
+          </div>
+          <input type="range" id="font-scale-slider" min="90" max="160" step="5" value="100" style="width: 100%; cursor: pointer;">
+        </div>
       </div>
-      <input type="range" id="font-scale-slider" min="90" max="160" step="5" value="100" style="width: 100%; cursor: pointer;">
-    </div>
+    </details>
 
     <div class="input-group">
       <label>Gemini API Key</label>
