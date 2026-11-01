@@ -1,10 +1,10 @@
 # Privacy Policy for Stark AI
 
-*Last updated: October 23, 2026*
+*Last updated: October 30, 2026*
 
 **Stark AI** ("Stark", "we", "our") is a browser extension designed to assist tabletop roleplayers running Pathfinder 2e campaigns with rules lookups, campaign notes search, and character sheet integration.
 
-We are committed to user privacy. Stark operates under a strict **local-first** and **minimal-data** model.
+We are committed to user privacy. Stark operates under a **local-first** and **minimal-data** model.
 
 ---
 
@@ -12,7 +12,8 @@ We are committed to user privacy. Stark operates under a strict **local-first** 
 
 Stark operates within your browser and only accesses data necessary to provide its core features:
 
-- **AI Provider API Keys**: If you choose to use cloud AI providers (such as Google Gemini, OpenRouter, or Groq), your API keys are stored locally on your device via Chrome's `storage.sync` or `storage.local` API. They are never transmitted to our servers or any third parties other than the AI provider you select.
+- **AI Provider API Keys**: If you choose to use cloud AI providers (such as Google Gemini, OpenRouter, or Groq), your API keys are stored in extension storage on your device. When using AI features, keys are sent directly to the respective AI provider to authenticate requests.
+- **Optional Cloud Profile Sync**: If you optionally choose to sign in to sync your configuration across devices, your campaign settings, provider order, and preferences are synchronized to your private user record on our secure backend database (Supabase). If you do not sign in, all data remains strictly local to your browser.
 - **Google Docs (Campaign Notes)**: If you connect your Google account to sync campaign notes, Stark requests read-only access (`documents.readonly`) via Google's official OAuth flow (`chrome.identity`). Stark retrieves the text content of the Google Docs URLs you specify solely to build the context for answering your campaign questions.
 - **Pathbuilder 2e Character Data**: If you provide Pathbuilder 2e public export URLs, Stark fetches character stats and spells solely to answer character-specific gameplay questions.
 - **Local Language Models**: If you use local models (such as Ollama or LM Studio), your queries and data remain entirely on your local machine (`localhost`).
@@ -22,7 +23,8 @@ Stark operates within your browser and only accesses data necessary to provide i
 ## 2. Data Storage and Retention
 
 - **No Remote Tracking or Analytics**: Stark does not run analytics, telemetry, or user tracking scripts.
-- **Local Storage**: All user settings, campaign names, document URLs, and API keys reside within Chrome's local extension storage on your device.
+- **Local Storage by Default**: All user settings, campaign names, and document URLs reside within Chrome's extension storage on your device.
+- **Cloud Database (Optional Sync)**: For signed-in users, profile settings and campaign configurations are stored securely on our database provider (Supabase) using Row Level Security (RLS) tied to your authenticated user account.
 - **Session Data**: Chat history and retrieved document context are held in local memory during your browser session and can be cleared at any time.
 
 ---
