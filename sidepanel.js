@@ -854,7 +854,8 @@ document.addEventListener('DOMContentLoaded', async () => {
           } else {
             const res = await fetch(url);
             const json = await res.json();
-            chars.push(JSON.stringify(json, null, 2));
+            // Use compact JSON to prevent token bloat and timeout delays
+            chars.push(JSON.stringify(json));
           }
         } catch(e) {
           console.error('Error fetching character data for ' + url, e);
@@ -955,7 +956,7 @@ Example: ["core", "campaign", "chars"]`;
               contents: [{ role: 'user', parts: [{ text: prompt }] }],
               generationConfig: { responseMimeType: "application/json" }
             }),
-            signal: AbortSignal.timeout(10000)
+            signal: AbortSignal.timeout(15000)
           });
           const json = await res.json();
           if (json.error) throw new Error(json.error.message);
@@ -977,7 +978,7 @@ Example: ["core", "campaign", "chars"]`;
               model: config.model || '',
               messages: [{ role: 'user', content: prompt }]
             }),
-            signal: AbortSignal.timeout(10000)
+            signal: AbortSignal.timeout(15000)
           });
           const json = await res.json();
           if (json.error) throw new Error(json.error.message || json.error);
@@ -1127,7 +1128,7 @@ ${relevantRules}
 
             while (retries > 0) {
               const controller = new AbortController();
-              const timeoutId = setTimeout(() => controller.abort(), 30000);
+              const timeoutId = setTimeout(() => controller.abort(new Error("Google Gemini took longer than 60s to generate a response.")), 60000);
 
               let res;
               try {
@@ -1192,7 +1193,7 @@ ${relevantRules}
             }
 
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 30000);
+            const timeoutId = setTimeout(() => controller.abort(new Error(`${providerName} took longer than 60s to generate a response.`)), 60000);
 
             let res;
             try {
@@ -1228,11 +1229,17 @@ ${relevantRules}
              break;
           }
         } catch (e) {
-          // Don't record an unconfigured localhost connection refusal if a cloud provider already threw a real error
-          if (provider === 'local' && providerErrors.length > 0 && /Failed to fetch|NetworkError/i.test(e.message || '')) {
+          // If localhost was tried but isn't running, don't pollute the error if there are other providers
+          if (provider === 'local' && /Failed to fetch|NetworkError/i.test(e.message || '')) {
             console.warn(`Local LLM not running (${e.message}).`);
+            if (order.length === 1) {
+              providerErrors.push(`${providerName}: Connection failed. Is your local model server (LM Studio / Ollama) started?`);
+            }
           } else {
-            providerErrors.push(`${providerName}: ${e.message}`);
+            const cleanMsg = (e.name === 'AbortError' || /aborted/i.test(e.message || ''))
+              ? `${providerName} took longer than 60s to respond.`
+              : e.message;
+            providerErrors.push(cleanMsg.startsWith(providerName) ? cleanMsg : `${providerName}: ${cleanMsg}`);
           }
           console.warn(`Provider ${provider} failed: ${e.message}. Cascading to next...`);
         }
