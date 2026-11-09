@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Stark: Your Pathfinder 2e Rules Lawyer",
   "version": "1.3",
-  "description": "AI assistant for Pathfinder 2e Game Masters. Fast local rules lookup, campaign notes RAG, and character sheet integration.",
+  "description": "Your Pathfinder 2e assistant- Get questions answered about game mechanics, campaign notes, and character info",
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
