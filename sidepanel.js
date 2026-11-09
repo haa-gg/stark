@@ -1122,46 +1122,68 @@ ${relevantRules}
               contents: conversationHistory
             };
             
-            let json;
-            let delay = 2000;
-            let retries = 3;
+            const geminiModels = ['gemini-flash-latest', 'gemini-2.5-flash'];
+            let geminiLastErr = null;
 
-            while (retries > 0) {
-              const controller = new AbortController();
-              const timeoutId = setTimeout(() => controller.abort(new Error("Google Gemini took longer than 60s to generate a response.")), 60000);
+            for (const geminiModel of geminiModels) {
+              let json;
+              let delay = 1500;
+              let retries = 2;
+              let modelOverloaded = false;
 
-              let res;
-              try {
-                res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent', {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                    'x-goog-api-key': cleanGeminiKey
-                  },
-                  body: JSON.stringify(reqBody),
-                  signal: controller.signal
-                });
-              } finally {
-                clearTimeout(timeoutId);
-              }
-              
-              json = await res.json();
-              
-              if (json.error && json.error.code === 503) {
-                retries--;
-                if (retries === 0) throw new Error("Google API is experiencing high demand.");
-                loadingDiv.textContent = `High demand on Google's servers. Retrying in ${delay / 1000}s...`;
-                await new Promise(r => setTimeout(r, delay));
-                delay *= 2; 
-              } else if (json.error) {
-                throw new Error(json.error.message || JSON.stringify(json.error));
-              } else {
-                answer = json.candidates[0].content.parts[0].text;
-                if (json.usageMetadata && json.usageMetadata.totalTokenCount) {
-                  updateTokenMeter(json.usageMetadata.totalTokenCount);
+              while (retries > 0) {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(new Error("Google Gemini took longer than 60s to generate a response.")), 60000);
+
+                let res;
+                try {
+                  res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent`, {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'x-goog-api-key': cleanGeminiKey
+                    },
+                    body: JSON.stringify(reqBody),
+                    signal: controller.signal
+                  });
+                } finally {
+                  clearTimeout(timeoutId);
                 }
-                break; 
+                
+                json = await res.json();
+                
+                if (json.error && json.error.code === 503) {
+                  retries--;
+                  if (retries === 0) {
+                    modelOverloaded = true;
+                    geminiLastErr = new Error("Google API is experiencing high demand.");
+                    break;
+                  }
+                  loadingDiv.textContent = `High demand on ${geminiModel}. Retrying in ${delay / 1000}s...`;
+                  await new Promise(r => setTimeout(r, delay));
+                  delay *= 2; 
+                } else if (json.error && (json.error.code === 404 || /not found/i.test(json.error.message || ''))) {
+                  geminiLastErr = new Error(json.error.message || JSON.stringify(json.error));
+                  break;
+                } else if (json.error) {
+                  throw new Error(json.error.message || JSON.stringify(json.error));
+                } else {
+                  answer = json.candidates[0].content.parts[0].text;
+                  if (json.usageMetadata && json.usageMetadata.totalTokenCount) {
+                    updateTokenMeter(json.usageMetadata.totalTokenCount);
+                  }
+                  break; 
+                }
               }
+
+              if (answer) break;
+              if (modelOverloaded) {
+                console.warn(`${geminiModel} is overloaded (503). Trying alternative Gemini model...`);
+              }
+            }
+
+            if (!answer && geminiLastErr) {
+              throw geminiLastErr;
             }
           } else {
             // OpenAI Format (Groq, OpenRouter, Local)
