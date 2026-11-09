@@ -9,31 +9,93 @@ class SupabaseService {
     this.session = null;
     
     // Automatically restore session from storage on boot
-    chrome.storage.local.get(['supabaseSession'], (res) => {
-      if (res.supabaseSession) {
-        this.session = res.supabaseSession;
-      }
+    this.sessionReady = new Promise((resolve) => {
+      chrome.storage.local.get(['supabaseSession'], (res) => {
+        if (res.supabaseSession) {
+          this.session = res.supabaseSession;
+        }
+        resolve();
+      });
     });
+  }
+
+  isTokenExpired(token) {
+    if (!token) return true;
+    try {
+      const base64Url = token.split('.')[1];
+      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+      const payload = JSON.parse(atob(base64));
+      if (!payload.exp) return false;
+      return Date.now() >= (payload.exp - 60) * 1000;
+    } catch (e) {
+      return true;
+    }
+  }
+
+  async refreshSession() {
+    if (!this.session || !this.session.refresh_token) return false;
+    try {
+      const res = await fetch(`${this.url}/auth/v1/token?grant_type=refresh_token`, {
+        method: 'POST',
+        headers: {
+          'apikey': this.key,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ refresh_token: this.session.refresh_token })
+      });
+      if (!res.ok) return false;
+      const data = await res.json();
+      if (data && data.access_token) {
+        this.session = {
+          ...this.session,
+          access_token: data.access_token,
+          refresh_token: data.refresh_token || this.session.refresh_token
+        };
+        await new Promise((resolve) => chrome.storage.local.set({ supabaseSession: this.session }, resolve));
+        return true;
+      }
+    } catch (e) {
+      console.warn('Failed to refresh Supabase session:', e);
+    }
+    return false;
   }
 
   // Helper to make authenticated REST calls to Supabase
   async fetchApi(endpoint, options = {}) {
-    const headers = {
-      'apikey': this.key,
-      'Content-Type': 'application/json',
-      ...options.headers
-    };
+    await this.sessionReady;
 
-    if (this.session && this.session.access_token) {
-      headers['Authorization'] = `Bearer ${this.session.access_token}`;
-    } else {
-      headers['Authorization'] = `Bearer ${this.key}`;
+    if (this.session && this.session.access_token && this.isTokenExpired(this.session.access_token)) {
+      await this.refreshSession();
     }
 
-    const response = await fetch(`${this.url}${endpoint}`, {
+    const buildHeaders = () => {
+      const h = {
+        'apikey': this.key,
+        'Content-Type': 'application/json',
+        ...options.headers
+      };
+      if (this.session && this.session.access_token) {
+        h['Authorization'] = `Bearer ${this.session.access_token}`;
+      } else {
+        h['Authorization'] = `Bearer ${this.key}`;
+      }
+      return h;
+    };
+
+    let response = await fetch(`${this.url}${endpoint}`, {
       ...options,
-      headers
+      headers: buildHeaders()
     });
+
+    if (response.status === 401 && this.session && this.session.refresh_token) {
+      const refreshed = await this.refreshSession();
+      if (refreshed) {
+        response = await fetch(`${this.url}${endpoint}`, {
+          ...options,
+          headers: buildHeaders()
+        });
+      }
+    }
 
     if (!response.ok) {
       const errorText = await response.text();

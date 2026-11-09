@@ -246,14 +246,34 @@ document.addEventListener('DOMContentLoaded', async () => {
             // Fetch their existing profile from Supabase
             const profile = await window.supabase.getProfile(userId);
             if (profile) {
-              // Populate local storage with cloud data
-              await chrome.storage.sync.set({
-                apiKey: profile.api_key || '',
-                providerOrder: profile.provider_order || ['gemini'],
+              const existingLocal = await chrome.storage.sync.get(['apiKey', 'providerConfigs', 'routingMode']);
+              const localConfigs = existingLocal.providerConfigs || {};
+              const cloudConfigs = profile.provider_configs || {};
+              const mergedConfigs = {
+                openrouter: {
+                  key: localConfigs.openrouter?.key || '',
+                  model: cloudConfigs.openrouter?.model || localConfigs.openrouter?.model || 'nvidia/nemotron-3.5-lightning:free'
+                },
+                groq: {
+                  key: localConfigs.groq?.key || '',
+                  model: cloudConfigs.groq?.model || localConfigs.groq?.model || 'llama-3.3-70b-versatile'
+                },
+                local: {
+                  url: cloudConfigs.local?.url || localConfigs.local?.url || 'http://localhost:1234/v1/chat/completions',
+                  model: cloudConfigs.local?.model || localConfigs.local?.model || 'local-model'
+                }
+              };
+              const toSave = {
+                apiKey: existingLocal.apiKey || '',
+                providerOrder: profile.provider_order || ['gemini', 'openrouter', 'groq', 'local'],
+                providerConfigs: mergedConfigs,
                 campaigns: profile.campaigns || {},
                 activeCampaign: profile.active_campaign || 'Default Campaign',
                 onboardingComplete: true
-              });
+              };
+              if (profile.routing_mode) toSave.routingMode = profile.routing_mode;
+              // Populate local storage with cloud data (API keys stay strictly in chrome.storage.sync)
+              await chrome.storage.sync.set(toSave);
             } else {
               chrome.storage.sync.set({ onboardingComplete: true });
             }
@@ -688,13 +708,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         fontScale: fontScaleSlider ? parseInt(fontScaleSlider.value, 10) : 100
       };
 
-      // Push to Supabase if logged in
+      // Push non-sensitive settings to Supabase if logged in (API keys stay strictly in chrome.storage.sync)
       const userId = window.supabase.getUserId();
       if (userId) {
+        const sanitizedCloudConfigs = {
+          openrouter: { model: newConfigs.openrouter.model },
+          groq: { model: newConfigs.groq.model },
+          local: { url: newConfigs.local.url, model: newConfigs.local.model }
+        };
         window.supabase.upsertProfile(userId, {
-          api_key: payloadToSave.apiKey,
+          api_key: null,
           provider_order: payloadToSave.providerOrder,
-          provider_configs: payloadToSave.providerConfigs,
+          provider_configs: sanitizedCloudConfigs,
           routing_mode: payloadToSave.routingMode,
           campaigns: payloadToSave.campaigns,
           active_campaign: payloadToSave.activeCampaign
@@ -912,15 +937,20 @@ Example: ["core", "campaign", "chars"]`;
 
     const order = data.providerOrder || ['gemini'];
     const configs = data.providerConfigs || {};
+    const cleanGeminiKey = (data.apiKey || '').trim().replace(/^["']|["']$/g, '');
     let content = null;
 
     for (let i = 0; i < order.length; i++) {
       const provider = order[i];
       try {
         if (provider === 'gemini') {
-          const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${data.apiKey}`, {
+          if (!cleanGeminiKey) continue;
+          const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+              'Content-Type': 'application/json',
+              'x-goog-api-key': cleanGeminiKey
+            },
             body: JSON.stringify({
               contents: [{ role: 'user', parts: [{ text: prompt }] }],
               generationConfig: { responseMimeType: "application/json" }
@@ -933,13 +963,16 @@ Example: ["core", "campaign", "chars"]`;
           break;
         } else {
           const config = configs[provider] || {};
+          if ((provider === 'groq' || provider === 'openrouter') && (!config.key || !config.key.trim())) {
+            continue;
+          }
           const baseUrl = provider === 'groq' ? 'https://api.groq.com/openai/v1/chat/completions' :
                           provider === 'openrouter' ? 'https://openrouter.ai/api/v1/chat/completions' :
                           config.url || 'http://localhost:1234/v1/chat/completions';
           
           const res = await fetch(baseUrl, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${config.key || ''}` },
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${(config.key || '').trim()}` },
             body: JSON.stringify({
               model: config.model || '',
               messages: [{ role: 'user', content: prompt }]
@@ -952,7 +985,7 @@ Example: ["core", "campaign", "chars"]`;
           break;
         }
       } catch (e) {
-        console.warn(`Router Provider ${provider} failed. Cascading...`);
+        console.warn(`Router Provider ${provider} failed (${e.message}). Cascading...`);
       }
     }
 
@@ -984,8 +1017,13 @@ Example: ["core", "campaign", "chars"]`;
     chatMessages.appendChild(loadingDiv);
     chatMessages.scrollTop = chatMessages.scrollHeight;
 
-    const data = await chrome.storage.sync.get(['onboardingComplete', 'apiKey', 'providerOrder', 'providerConfigs', 'routingMode']);
-    if (!data.apiKey && (!data.providerOrder || data.providerOrder[0] === 'gemini')) {
+    const data = await chrome.storage.sync.get(['onboardingComplete', 'apiKey', 'providerOrder', 'providerConfigs', 'routingMode', 'gameSystem']);
+    const hasFallbackKey = data.providerConfigs && (
+      (data.providerConfigs.openrouter && data.providerConfigs.openrouter.key && data.providerConfigs.openrouter.key.trim()) ||
+      (data.providerConfigs.groq && data.providerConfigs.groq.key && data.providerConfigs.groq.key.trim())
+    );
+    const hasLocal = data.providerOrder && data.providerOrder.includes('local');
+    if (!data.apiKey && !hasFallbackKey && (!data.providerOrder || (data.providerOrder[0] === 'gemini' && !hasLocal))) {
       loadingDiv.textContent = "Error: API Key is missing. Please configure settings.";
       chatInput.disabled = false;
       sendBtn.disabled = false;
@@ -1032,7 +1070,7 @@ Example: ["core", "campaign", "chars"]`;
         relevantRules = getRelevantChunks(combinedRules, text, 15000);
       }
 
-      const sysName = data.gameSystem === 'pf2e' ? 'Pathfinder 2e' : 'D&D 5e';
+      const sysName = (data.gameSystem || 'pf2e') === 'pf2e' ? 'Pathfinder 2e' : 'D&D 5e';
       const systemInstruction = `You are Stark, an AI Game Master assistant for a ${sysName} campaign. 
 Use the provided context to ground your mechanics, but you are highly encouraged to synthesize this information, make logical inferences, and offer strategic advice/recommendations to the player based on ${sysName} rules.
 CRITICAL INSTRUCTION: Do NOT use any emojis in your responses. Keep the tone serious and professional.
@@ -1052,7 +1090,8 @@ ${relevantRules}
       
       const order = data.providerOrder || ['gemini'];
       const configs = data.providerConfigs || {};
-      let lastError = null;
+      const cleanGeminiKey = (data.apiKey || '').trim().replace(/^["']|["']$/g, '');
+      let providerErrors = [];
 
       for (let i = 0; i < order.length; i++) {
         const provider = order[i];
@@ -1060,6 +1099,13 @@ ${relevantRules}
                            provider === 'openrouter' ? 'OpenRouter' : 
                            provider === 'groq' ? 'Groq' : 
                            provider === 'local' ? 'Local LLM' : 'Unknown Provider';
+
+        if (provider === 'gemini' && !cleanGeminiKey) {
+          continue;
+        }
+        if ((provider === 'openrouter' || provider === 'groq') && (!configs[provider]?.key || !configs[provider].key.trim())) {
+          continue;
+        }
 
         if (provider === 'gemini') {
           tokenMeterContainer.style.display = 'block';
@@ -1071,7 +1117,7 @@ ${relevantRules}
           if (provider === 'gemini') {
             loadingDiv.textContent = 'Thinking... (calling Gemini)';
             const reqBody = {
-              system_instruction: { parts: { text: systemInstruction } },
+              system_instruction: { parts: [{ text: systemInstruction }] },
               contents: conversationHistory
             };
             
@@ -1085,9 +1131,12 @@ ${relevantRules}
 
               let res;
               try {
-                res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${data.apiKey}`, {
+                res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent', {
                   method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'x-goog-api-key': cleanGeminiKey
+                  },
                   body: JSON.stringify(reqBody),
                   signal: controller.signal
                 });
@@ -1119,7 +1168,7 @@ ${relevantRules}
             const baseUrl = provider === 'groq' ? 'https://api.groq.com/openai/v1/chat/completions' :
                             provider === 'openrouter' ? 'https://openrouter.ai/api/v1/chat/completions' :
                             config.url || 'http://localhost:1234/v1/chat/completions';
-            const apiKey = config.key || '';
+            const apiKey = (config.key || '').trim();
             const modelId = config.model || '';
 
             if (provider === 'local' && baseUrl) {
@@ -1147,9 +1196,11 @@ ${relevantRules}
 
             let res;
             try {
+              const reqHeaders = { 'Content-Type': 'application/json' };
+              if (apiKey) reqHeaders['Authorization'] = `Bearer ${apiKey}`;
               res = await fetch(baseUrl, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+                headers: reqHeaders,
                 body: JSON.stringify({
                   model: modelId,
                   messages: openaiMessages
@@ -1173,18 +1224,23 @@ ${relevantRules}
 
           // If we successfully got an answer, stop the cascade loop
           if (answer) {
-             lastError = null;
+             providerErrors = [];
              break;
           }
         } catch (e) {
-          lastError = e;
+          // Don't record an unconfigured localhost connection refusal if a cloud provider already threw a real error
+          if (provider === 'local' && providerErrors.length > 0 && /Failed to fetch|NetworkError/i.test(e.message || '')) {
+            console.warn(`Local LLM not running (${e.message}).`);
+          } else {
+            providerErrors.push(`${providerName}: ${e.message}`);
+          }
           console.warn(`Provider ${provider} failed: ${e.message}. Cascading to next...`);
         }
       }
 
-      if (lastError && !answer) {
-        throw lastError;
-      } // <-- Added missing closing brace
+      if (providerErrors.length > 0 && !answer) {
+        throw new Error(providerErrors.join(' | '));
+      }
       // Trim excessive linebreaks to improve text flow
       answer = answer.replace(/\n{3,}/g, '\n\n').trim();
       
@@ -1222,27 +1278,6 @@ ${relevantRules}
       handleSend();
     }
   });
-
-  // --- Login / Onboarding Logic ---
-  if (getStartedBtn && oauthLoginBtn) {
-    getStartedBtn.addEventListener('click', () => {
-      chrome.storage.sync.set({ onboardingComplete: true });
-      loginView.classList.add('hidden');
-      settingsView.classList.remove('hidden');
-    });
-
-    oauthLoginBtn.addEventListener('click', async () => {
-      oauthLoginBtn.textContent = 'Authenticating...';
-      try {
-        await connectGoogle(); // Reuse existing OAuth logic
-        loginView.classList.add('hidden');
-        settingsView.classList.remove('hidden');
-      } catch (e) {
-        console.error(e);
-        oauthLoginBtn.textContent = 'Sign in with Google';
-      }
-    });
-  }
 
   // --- Local Wizard Logic ---
   if (launchLocalWizardBtn && localWizardModal && closeWizardBtn && testLocalConnBtn && localConnStatus) {
