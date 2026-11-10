@@ -811,7 +811,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (token) {
               const res = await fetch(
                 `https://docs.googleapis.com/v1/documents/${docId}?includeTabsContent=true`,
-                { headers: { 'Authorization': `Bearer ${token}` } }
+                { headers: { 'Authorization': `Bearer ${token}` }, signal: AbortSignal.timeout(10000) }
               );
               if (res.status === 401) {
                 chrome.storage.sync.remove(['googleToken', 'googleTokenExpiry']);
@@ -824,7 +824,8 @@ document.addEventListener('DOMContentLoaded', async () => {
               return `--- Document ${index + 1} ---\n` + (extracted.trim() || 'No content found.');
             } else {
               const res = await fetch(
-                `https://docs.google.com/document/d/${docId}/export?format=txt`
+                `https://docs.google.com/document/d/${docId}/export?format=txt`,
+                { signal: AbortSignal.timeout(10000) }
               );
               const text = await res.text();
               const docText = text.trim().startsWith('<!DOCTYPE') ? 'Could not read doc. Connect your Google Account for full access.' : text;
@@ -852,7 +853,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const md = await window.parseDndBeyondCharacter(url);
             chars.push(md);
           } else {
-            const res = await fetch(url);
+            const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
             const json = await res.json();
             // Use compact JSON to prevent token bloat and timeout delays
             chars.push(JSON.stringify(json));
@@ -946,22 +947,34 @@ Example: ["core", "campaign", "chars"]`;
       try {
         if (provider === 'gemini') {
           if (!cleanGeminiKey) continue;
-          const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'x-goog-api-key': cleanGeminiKey
-            },
-            body: JSON.stringify({
-              contents: [{ role: 'user', parts: [{ text: prompt }] }],
-              generationConfig: { responseMimeType: "application/json" }
-            }),
-            signal: AbortSignal.timeout(15000)
-          });
-          const json = await res.json();
-          if (json.error) throw new Error(json.error.message);
-          content = json.candidates[0].content.parts[0].text;
-          break;
+          const routerModels = ['gemini-2.5-flash', 'gemini-flash-latest'];
+          for (const rm of routerModels) {
+            try {
+              const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${rm}:generateContent`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'x-goog-api-key': cleanGeminiKey
+                },
+                body: JSON.stringify({
+                  contents: [{ role: 'user', parts: [{ text: prompt }] }],
+                  generationConfig: {
+                    responseMimeType: "application/json",
+                    thinkingConfig: { thinkingBudget: 0 }
+                  }
+                }),
+                signal: AbortSignal.timeout(8000)
+              });
+              const json = await res.json();
+              if (json.candidates?.[0]?.content?.parts?.[0]?.text) {
+                content = json.candidates[0].content.parts[0].text;
+                break;
+              }
+            } catch (err) {
+              console.warn(`Router Gemini model ${rm} failed: ${err.message}`);
+            }
+          }
+          if (content) break;
         } else {
           const config = configs[provider] || {};
           if ((provider === 'groq' || provider === 'openrouter') && (!config.key || !config.key.trim())) {
@@ -1059,6 +1072,14 @@ Example: ["core", "campaign", "chars"]`;
         if (route.includes("chars")) charactersText = contexts.charactersText;
       }
       
+      // Safety guardrails against massive payload sizes that cause API timeouts
+      if (notesText && notesText.length > 50000) {
+        notesText = notesText.substring(0, 50000) + "\n\n[Campaign notes truncated for length...]";
+      }
+      if (charactersText && charactersText.length > 80000) {
+        charactersText = charactersText.substring(0, 80000) + "\n\n[Character data truncated for length...]";
+      }
+      
       loadingDiv.textContent = 'Thinking... (running local search over rulebooks)';
       await ensureRulebooksLoaded();
       let combinedRules = "";
@@ -1119,67 +1140,113 @@ ${relevantRules}
             loadingDiv.textContent = 'Thinking... (calling Gemini)';
             const reqBody = {
               system_instruction: { parts: [{ text: systemInstruction }] },
-              contents: conversationHistory
+              contents: conversationHistory,
+              generationConfig: {
+                thinkingConfig: {
+                  thinkingBudget: 0
+                }
+              }
             };
             
-            const geminiModels = ['gemini-flash-latest', 'gemini-2.5-flash'];
+            const geminiModels = ['gemini-2.5-flash', 'gemini-flash-latest', 'gemini-1.5-flash'];
             let geminiLastErr = null;
 
             for (const geminiModel of geminiModels) {
-              let json;
               let delay = 1500;
               let retries = 2;
-              let modelOverloaded = false;
+              let tryWithoutThinking = false;
 
               while (retries > 0) {
                 const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(new Error("Google Gemini took longer than 60s to generate a response.")), 60000);
+                const timeoutId = setTimeout(() => controller.abort(new Error(`Gemini (${geminiModel}) took longer than 45s to respond.`)), 45000);
 
                 let res;
+                let json;
                 try {
+                  const currentReqBody = JSON.parse(JSON.stringify(reqBody));
+                  if (tryWithoutThinking && currentReqBody.generationConfig?.thinkingConfig) {
+                    delete currentReqBody.generationConfig.thinkingConfig;
+                  }
+
                   res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent`, {
                     method: 'POST',
                     headers: {
                       'Content-Type': 'application/json',
                       'x-goog-api-key': cleanGeminiKey
                     },
-                    body: JSON.stringify(reqBody),
+                    body: JSON.stringify(currentReqBody),
                     signal: controller.signal
                   });
+                  json = await res.json();
+                } catch (fetchErr) {
+                  clearTimeout(timeoutId);
+                  console.warn(`Gemini (${geminiModel}) request failed: ${fetchErr.message}`);
+                  geminiLastErr = fetchErr;
+                  // If aborted due to timeout or network failure, break to try the next model
+                  break;
                 } finally {
                   clearTimeout(timeoutId);
                 }
-                
-                json = await res.json();
-                
-                if (json.error && json.error.code === 503) {
-                  retries--;
-                  if (retries === 0) {
-                    modelOverloaded = true;
-                    geminiLastErr = new Error("Google API is experiencing high demand.");
+
+                if (json && json.error) {
+                  const errCode = json.error.code;
+                  const errMsg = json.error.message || JSON.stringify(json.error);
+
+                  // 1) Model does not support thinkingConfig
+                  if (errCode === 400 && /thinkingConfig|unknown field/i.test(errMsg) && !tryWithoutThinking) {
+                    console.warn(`Model ${geminiModel} does not support thinkingConfig, retrying without it...`);
+                    tryWithoutThinking = true;
+                    continue;
+                  }
+
+                  // 2) Overloaded / 503 High Demand
+                  if (errCode === 503) {
+                    retries--;
+                    if (retries === 0) {
+                      geminiLastErr = new Error("Google API is experiencing high demand.");
+                      console.warn(`${geminiModel} is overloaded (503). Trying alternative Gemini model...`);
+                      break;
+                    }
+                    loadingDiv.textContent = `High demand on ${geminiModel}. Retrying in ${delay / 1000}s...`;
+                    await new Promise(r => setTimeout(r, delay));
+                    delay *= 2;
+                    continue;
+                  }
+
+                  // 3) Model not found (404)
+                  if (errCode === 404 || /not found/i.test(errMsg)) {
+                    geminiLastErr = new Error(errMsg);
+                    console.warn(`${geminiModel} not found (404). Trying alternative Gemini model...`);
                     break;
                   }
-                  loadingDiv.textContent = `High demand on ${geminiModel}. Retrying in ${delay / 1000}s...`;
-                  await new Promise(r => setTimeout(r, delay));
-                  delay *= 2; 
-                } else if (json.error && (json.error.code === 404 || /not found/i.test(json.error.message || ''))) {
-                  geminiLastErr = new Error(json.error.message || JSON.stringify(json.error));
+
+                  // 4) Rate limit (429)
+                  if (errCode === 429) {
+                    geminiLastErr = new Error("Google API rate limit exceeded. Please wait a moment or check your quota.");
+                    break;
+                  }
+
+                  // Other error (auth, bad request)
+                  geminiLastErr = new Error(errMsg);
                   break;
-                } else if (json.error) {
-                  throw new Error(json.error.message || JSON.stringify(json.error));
-                } else {
+                }
+
+                if (json && json.candidates && json.candidates[0]?.content?.parts?.[0]?.text) {
                   answer = json.candidates[0].content.parts[0].text;
                   if (json.usageMetadata && json.usageMetadata.totalTokenCount) {
                     updateTokenMeter(json.usageMetadata.totalTokenCount);
                   }
-                  break; 
+                  break;
+                } else if (json && json.candidates && json.candidates[0]?.finishReason) {
+                  geminiLastErr = new Error(`Gemini response stopped: ${json.candidates[0].finishReason}`);
+                  break;
+                } else if (json) {
+                  geminiLastErr = new Error("Gemini returned an empty response.");
+                  break;
                 }
               }
 
               if (answer) break;
-              if (modelOverloaded) {
-                console.warn(`${geminiModel} is overloaded (503). Trying alternative Gemini model...`);
-              }
             }
 
             if (!answer && geminiLastErr) {
@@ -1218,6 +1285,7 @@ ${relevantRules}
             const timeoutId = setTimeout(() => controller.abort(new Error(`${providerName} took longer than 60s to generate a response.`)), 60000);
 
             let res;
+            let json;
             try {
               const reqHeaders = { 'Content-Type': 'application/json' };
               if (apiKey) reqHeaders['Authorization'] = `Bearer ${apiKey}`;
@@ -1230,19 +1298,23 @@ ${relevantRules}
                 }),
                 signal: controller.signal
               });
+              json = await res.json();
             } finally {
               clearTimeout(timeoutId);
             }
             
-            const json = await res.json();
-            if (json.error) {
+            if (json && json.error) {
                let errMsg = json.error.message || JSON.stringify(json.error);
                if (json.error.metadata && json.error.metadata.raw) {
                   errMsg += ` (Upstream details: ${json.error.metadata.raw})`;
                }
                throw new Error(errMsg);
             }
-            answer = json.choices[0].message.content;
+            if (json && json.choices && json.choices[0]?.message?.content) {
+              answer = json.choices[0].message.content;
+            } else {
+              throw new Error(`Empty response returned by ${providerName}.`);
+            }
           }
 
           // If we successfully got an answer, stop the cascade loop
