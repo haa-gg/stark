@@ -415,7 +415,8 @@ document.addEventListener('DOMContentLoaded', async () => {
           'pf2etools_data/data/spells/spells-pc1.json',
           'pf2etools_data/data/actions.json',
           'pf2etools_data/data/conditions.json',
-          'pf2etools_data/data/skills.json'
+          'pf2etools_data/data/skills.json',
+          'pf2etools_data/data/build_guides.json'
         ]).then(text => { rulebookText = text; }),
         loadPf2eJson([
           'pf2etools_data/data/spells/spells-apg.json',
@@ -1107,6 +1108,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         const matches = lower.match(new RegExp('\\b' + kw + '\\b', 'g'));
         if (matches) score += matches.length;
       });
+      // Boost build guide chunks when user is asking for recommendations, builds, prep, or feats
+      const isGuide = lower.includes('"tactics & build blueprint"') || lower.includes('"musthavefeats"');
+      const isAdviceQuery = /recommend|prep|build|guide|feat|skill|advice|spell|role/i.test(query);
+      if (isGuide && isAdviceQuery && score > 0) {
+        score += 15;
+      }
       return { chunk, score };
     });
     scoredChunks.sort((a, b) => b.score - a.score);

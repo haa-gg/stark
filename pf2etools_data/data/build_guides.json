@@ -1,0 +1,159 @@
+{
+  "build_guides": [
+    {
+      "class": "Bard",
+      "tradition": "Occult",
+      "title": "Bard Tactics & Build Blueprint (Pathfinder 2e Remaster)",
+      "overview": "Bards are spontaneous Occult spellcasters centered on the 3-action economy. Their signature power comes from Composition Cantrips (Courageous Anthem, Dirge of Doom) and the Occult spell list's superior buffs, mental debuffs, and Soothe healing.",
+      "keyMechanics": [
+        "Primary Attribute: Charisma (boost DEX for AC/reflex, CON for HP/fortitude, WIS for perception/will).",
+        "Magical Tradition: Occult (Spontaneous). Focus on Will-save debuffs, mental status conditions, buffs, and psychic healing.",
+        "Signature Spells: At each spell rank, you pick one signature spell you can heighten freely to any higher or lower slot without relearning it.",
+        "Composition Cantrips: 1-action focus cantrips that affect the entire party within 60 feet. Only one composition effect can be active at a time unless using Harmonize."
+      ],
+      "roles": {
+        "Support / Healer": {
+          "description": "Party force multiplier and primary HP/condition manager. Ensures allies land strikes, survive deadly boss hits, and maintain superior action economy.",
+          "mustHaveFeats": [
+            { "name": "Lingering Composition", "level": 1, "type": "Class Feat (Focus Spell)", "why": "The single most important Bard feat. Spend 1 Focus Point and roll Performance: on a success, your composition cantrip (Courageous Anthem) lasts 3 rounds; on a critical success, 4 rounds. This frees up 1 action every turn to cast spells, Stride, or use skill actions." },
+            { "name": "Inspire Defense (Song of Defense)", "level": 2, "type": "Class Feat", "why": "1 action gives the whole party a +1 status bonus to AC and saves, plus physical damage resistance 1-3. Essential against heavy-hitting boss encounters." },
+            { "name": "Hymn of Healing", "level": 2, "type": "Class Feat (Focus Spell)", "why": "Provides Fast Healing 2-10 and temporary HP each round for 4 rounds. Excellent sustain between fights and during protracted combats." },
+            { "name": "Bon Mot", "level": 1, "type": "Skill Feat (Diplomacy)", "why": "1 action to insult an enemy: on a success, imposes a -2 status penalty to Will DC (-3 on crit). Directly softens enemies up for your Will-save debuffs." },
+            { "name": "Battle Medicine", "level": 1, "type": "Skill Feat (Medicine)", "why": "Allows 1-action in-combat mundane healing without spending spell slots. Pair with Medic Dedication at level 2 for massive healing output." }
+          ],
+          "signatureSpellRecommendation": "Soothe (Select as Signature Spell at Rank 1, so it can be cast out of any slot from Rank 1 through 10 as needed).",
+          "spellsByRank": {
+            "Rank 1": [
+              { "name": "Soothe", "actions": "2", "why": "Occult's premier healing spell. Restores scaling HP and grants a +2 status bonus against mental effects for 1 minute." },
+              { "name": "Lose the Path", "actions": "Reaction", "why": "Triggers when an enemy Strides. Forces a Will save; on failure, they move in a random direction and treat terrain as difficult, ruining their melee routine." },
+              { "name": "Protection", "actions": "2", "why": "+1 status bonus to AC and saves against unholy/holy or specific creatures." }
+            ],
+            "Rank 2": [
+              { "name": "Loose Time's Arrow", "actions": "2", "why": "Grants the entire party Quickened 1 for 1 round to Stride or Strike. Unlocks massive alpha strikes." },
+              { "name": "Sound Blaster (formerly Sound Burst)", "actions": "2", "why": "Fortitude save sonic blast in a 10-ft burst. Deals sonic damage and inflicts Deafened and Stunned 1 on failure." },
+              { "name": "Dispel Magic", "actions": "2", "why": "Counteracts enemy ongoing magical buffs, debuffs, and hazards." }
+            ],
+            "Rank 3": [
+              { "name": "Slow", "actions": "2", "why": "The undisputed king of debuffs. Targets Fortitude. Even on a successful save, the target is Slowed 1 for 1 round, breaking 3-action monster abilities. On failure, Slowed 1 for 1 minute." },
+              { "name": "Roaring Applause", "actions": "2", "why": "Targets Will. Target must clap on their turn, disabling all their reactions and triggering ally reactive strikes whenever they manipulate/move." },
+              { "name": "Haste", "actions": "2", "why": "Target ally gains Quickened 1 for 1 minute to Strike or Stride. Best cast on your party's martial striker (Fighter, Barbarian, Rogue)." }
+            ],
+            "Rank 4": [
+              { "name": "Invisibility (Rank 4)", "actions": "2", "why": "Attacking does NOT break this invisibility. Gives the target hidden/undetected status, flat-footing enemies and granting defense." },
+              { "name": "Fly", "actions": "2", "why": "Crucial vertical mobility against flying monsters or difficult terrain." },
+              { "name": "Translocate (formerly Dimension Door)", "actions": "2", "why": "120-foot teleport without provoking reactions. Essential escape tool." }
+            ],
+            "Rank 5": [
+              { "name": "Synesthesia", "actions": "2", "why": "Widely regarded as the strongest debuff in Pathfinder 2e. Imposes Clumsy 3, Stupefied 3, and forces a DC 5 flat check on all attacks/spells (Concealed), even on a regular save!" },
+              { "name": "Shadow Siphon", "actions": "Reaction", "why": "Reaction when you or an ally take elemental/force damage from a spell. Reduces damage by 10-30." }
+            ],
+            "Rank 6": [
+              { "name": "Slow (Rank 6 Heightened)", "actions": "2", "why": "Targets up to 10 creatures within 30 feet! Shuts down entire encounters of minions and lieutenants." },
+              { "name": "Heroism (Rank 6 Heightened)", "actions": "2", "why": "+2 status bonus to attack rolls, Perception, saving throws, and skill checks for 10 minutes." }
+            ]
+          }
+        },
+        "Crowd Control / Debuffer": {
+          "description": "Disrupts enemy action economy, imposes debilitating status penalties, and shuts down boss monster routines using Will and Fortitude targeting.",
+          "mustHaveFeats": [
+            { "name": "Dirge of Doom", "level": 6, "type": "Class Feat", "why": "1-action aura inflicting Frightened 1 on all enemies within 30 feet with NO SAVING THROW. Enemies cannot reduce their frightened value below 1 while in the aura." },
+            { "name": "Bon Mot", "level": 1, "type": "Skill Feat (Diplomacy)", "why": "Reduces target's Will DC by -2 to -3 for 1 minute on a simple Diplomacy vs Will DC roll." },
+            { "name": "Intimidating Glare", "level": 1, "type": "Skill Feat (Intimidation)", "why": "Allows 1-action Demoralize without the auditory trait, bypassing language barriers." }
+          ],
+          "signatureSpellRecommendation": "Slow (Heightened to Rank 6 when unlocked) or Synesthesia.",
+          "stapleSpells": [
+            "Slow (Rank 3/6)",
+            "Synesthesia (Rank 5)",
+            "Roaring Applause (Rank 3)",
+            "Phantasmal Killer (Rank 4)",
+            "Confusion (Rank 4)",
+            "Ghoulish Feast (Rank 2)"
+          ]
+        }
+      },
+      "commonTraps": [
+        "Do NOT search for Heal: Heal is a Divine/Primal spell. Bards use Soothe, which is just as potent and carries mental defense.",
+        "Do NOT overload on 2-action offensive spells: Bards need their 3rd action for Courageous Anthem or Dirge of Doom. Taking spells that require 3 actions ruins action economy.",
+        "Do NOT skip Lingering Composition: Without it, you are locked into spending 1 action every single turn maintaining composition cantrips."
+      ]
+    },
+    {
+      "class": "Druid",
+      "tradition": "Primal",
+      "title": "Druid Tactics & Build Blueprint (Pathfinder 2e Remaster)",
+      "overview": "Druids are prepared Primal spellcasters blending elemental damage, battlefield control, shapeshifting, and nature healing. They prepare spells daily from the full common Primal list and gain unique focus spells from their Druidic Order.",
+      "keyMechanics": [
+        "Primary Attribute: Wisdom (boost CON for fortitude/HP, DEX for AC/reflex, STR if taking Wild Shape).",
+        "Magical Tradition: Primal (Prepared). Combines the raw elemental blasting of Arcane with the vitality healing of Divine.",
+        "Daily Preparation: Each morning, you prepare 1 specific spell into each spell slot. You can freely change your entire prepared list each day.",
+        "Druidic Orders: Determine your initial focus spell, subclass feat, and anathema (Animal, Leaf, Storm, Wild, Stone, Wave, Flame)."
+      ],
+      "roles": {
+        "Support & Healer (Leaf Order / Primal Healer)": {
+          "description": "Restores massive hit points with 1-, 2-, and 3-action Heal, removes afflictions, shapes battlefields, and buffs martial movement.",
+          "mustHaveFeats": [
+            { "name": "Order Explorer", "level": 2, "type": "Class Feat", "why": "Allows you to select a second Druidic Order (e.g., pairing Leaf with Storm or Animal) to gain additional focus spells and class versatility." },
+            { "name": "Goodberry (Cornucopia)", "level": 1, "type": "Leaf Order Focus Spell", "why": "Produces magical berries providing scaling healing and sustenance. Great for post-combat top-ups without using spell slots." },
+            { "name": "Natural Medicine", "level": 1, "type": "Skill Feat (Nature)", "why": "Enables Treat Wounds using your primary Nature skill modifier instead of Medicine." },
+            { "name": "Shield Block", "level": 1, "type": "General Feat", "why": "Druids start with Shield Block. Raising a sturdy wooden shield absorbs heavy damage hits." }
+          ],
+          "stapleSpellsByRank": {
+            "Rank 1": [
+              { "name": "Heal", "actions": "1, 2, or 3", "why": "The premier healing spell in TTRPGs. 1 action is touch; 2 actions is 30-ft range with an extra +8 HP per rank; 3 actions is a 30-ft burst healing all living allies." },
+              { "name": "Tailwind (formerly Longstrider)", "actions": "2", "why": "When cast at Rank 2, grants a +10-foot status bonus to speed for an entire 8 hours! Prepare this every single day." },
+              { "name": "Runic Weapon (formerly Magic Weapon)", "actions": "2", "why": "Turns a low-level martial ally's weapon into a +1 striking weapon (double weapon dice). Dominates levels 1-3." }
+            ],
+            "Rank 2": [
+              { "name": "Tailwind (Heightened Rank 2)", "actions": "2", "why": "+10 ft speed for 8 hours. Vital defensive mobility." },
+              { "name": "Mist", "actions": "2", "why": "Creates a 20-ft concealment cloud. Protects allies from ranged attacks and allows easy Hide actions." },
+              { "name": "Cleanse Affliction (formerly Remove Disease/Curse)", "actions": "2", "why": "Counteracts poisons, diseases, and curses." }
+            ],
+            "Rank 3": [
+              { "name": "Slow", "actions": "2", "why": "Steals boss monster actions even on a successful Fortitude save." },
+              { "name": "Haste", "actions": "2", "why": "Grants your martial ally an extra action each round for 1 minute." },
+              { "name": "Wooden Double", "actions": "Reaction", "why": "Triggers when you take a critical hit or severe damage. Replaces you with a decoy log, reducing damage significantly." }
+            ],
+            "Rank 4": [
+              { "name": "Fly", "actions": "2", "why": "Flight mobility for self or allies." },
+              { "name": "Vital Beacon", "actions": "2", "why": "Turn yourself into a walking healing beacon that allies can touch to heal throughout the dungeon." }
+            ],
+            "Rank 5": [
+              { "name": "Wall of Stone", "actions": "3", "why": "Arguably the best battlefield control spell in the game. Creates a permanent, solid granite wall with 50+ HP per section. Completely splits encounters in half with NO SAVING THROW." },
+              { "name": "Breath of Life", "actions": "Reaction", "why": "Reaction when an adjacent ally would drop to 0 HP / die. Instantly restores 4d8 HP and prevents death." }
+            ]
+          }
+        },
+        "Blaster & Elemental Damage (Storm Order)": {
+          "description": "Commands lightning, thunder, ice, and wind to deal heavy area-of-effect and single-target elemental burst damage.",
+          "mustHaveFeats": [
+            { "name": "Tempest Surge", "level": 1, "type": "Storm Order Focus Spell", "why": "2-action electricity strike that deals 1d12 damage per spell rank, inflicts Clumsy 2, and deals 1d4 persistent electricity damage on failure. Excellent reusable damage engine." },
+            { "name": "Storm Retribution", "level": 6, "type": "Class Feat", "why": "Reaction when critically hit in melee to unleash an electrical counter-shock." }
+          ],
+          "stapleSpells": [
+            "Electric Arc (Cantrip: Hits 2 targets, highest expected damage cantrip)",
+            "Thunderstrike (Rank 1: 1d12 electricity + 1d4 sonic damage)",
+            "Sound Blaster (Rank 2: Fortitude sonic burst)",
+            "Fireball (Rank 3: 20-ft radius fire explosion)",
+            "Hydraulic Torrent (Rank 4: 60-ft line of water dealing heavy bludgeoning damage and pushing enemies)",
+            "Howling Blizzard (Rank 5: 10d6 cold damage burst with difficult terrain snow)",
+            "Chain Lightning (Rank 6: High-voltage electricity arcing between unlimited enemies without hitting allies)"
+          ]
+        },
+        "Frontline Shapeshifter / Gish (Wild Order)": {
+          "description": "Channels primal spirits to transform into bears, dinosaurs, dragons, and elemental battle forms.",
+          "mustHaveFeats": [
+            { "name": "Wild Shape (Untamed Form)", "level": 1, "type": "Wild Order Focus Spell", "why": "Transforms into pest form, animal form, and higher battle forms using focus points. Grants temporary HP, high speed, and versatile unarmed attacks." },
+            { "name": "Form Control", "level": 4, "type": "Class Feat", "why": "Allows battle forms to last 1 hour instead of 1 minute (at 1 rank lower) for dungeon exploration." },
+            { "name": "Ferocious Shape / Soaring Shape", "level": 8, "type": "Class Feat", "why": "Unlocks ferocious carnivores (T-Rex) and winged aerial forms." }
+          ],
+          "stapleTactics": "Pre-cast buffs like Tailwind (Rank 2) or Barkskin BEFORE transforming, because casting spells is disabled while in battle form. Wild Shape gives a +2 status bonus to attack rolls if your own unarmed modifier is higher than the form's default."
+        }
+      },
+      "commonTraps": [
+        "Do NOT prepare only damage spells: The Primal list has Wall of Stone, Slow, and Heal. A Druid who only casts Fireball misses 70% of their tactical impact.",
+        "Do NOT forget about 1-action and 2-action Heal flexibility: In a crisis, a 2-action Heal (touch + 30-ft range + bonus HP) brings a dying martial back to full strength.",
+        "Do NOT forget Wooden Double: Druids have 8 HP/level and medium armor; having a reaction like Wooden Double prevents sudden death from boss critical hits."
+      ]
+    }
+  ]
+}
