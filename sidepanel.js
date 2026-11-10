@@ -789,6 +789,227 @@ document.addEventListener('DOMContentLoaded', async () => {
     return text;
   }
 
+  function getProfName(rank) {
+    switch (rank) {
+      case 2: return "Trained";
+      case 4: return "Expert";
+      case 6: return "Master";
+      case 8: return "Legendary";
+      default: return "Untrained";
+    }
+  }
+
+  function getMod(score) {
+    if (typeof score !== 'number') return 0;
+    return Math.floor((score - 10) / 2);
+  }
+
+  function formatMod(val) {
+    return val >= 0 ? `+${val}` : `${val}`;
+  }
+
+  function parsePathbuilderCharacter(data) {
+    if (!data) return "No character data provided.";
+    const build = data.build || (data.name ? data : null);
+    if (!build) {
+      return typeof data === 'string' ? data : JSON.stringify(data);
+    }
+
+    const lines = [];
+
+    // Header & Core Identity
+    const name = build.name || "Unnamed Character";
+    const charClass = build.class || "Unknown Class";
+    const level = build.level || 1;
+    const dualClass = build.dualClass ? ` / ${build.dualClass}` : "";
+    lines.push(`## CHARACTER SHEET: ${name}`);
+    lines.push(`- **Class & Level:** ${charClass}${dualClass} (Level ${level})`);
+    
+    const ancestry = build.ancestry || "Unknown Ancestry";
+    const heritage = build.heritage ? ` (${build.heritage})` : "";
+    lines.push(`- **Ancestry & Heritage:** ${ancestry}${heritage}`);
+    if (build.background) lines.push(`- **Background:** ${build.background}`);
+    if (build.deity) lines.push(`- **Deity:** ${build.deity}`);
+    if (build.alignment) lines.push(`- **Alignment:** ${build.alignment}`);
+
+    // Abilities & Modifiers
+    const a = build.abilities || { str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10 };
+    const strMod = getMod(a.str);
+    const dexMod = getMod(a.dex);
+    const conMod = getMod(a.con);
+    const intMod = getMod(a.int);
+    const wisMod = getMod(a.wis);
+    const chaMod = getMod(a.cha);
+    const mods = { str: strMod, dex: dexMod, con: conMod, int: intMod, wis: wisMod, cha: chaMod };
+
+    lines.push(`- **Ability Scores:** STR ${a.str || 10} (${formatMod(strMod)}), DEX ${a.dex || 10} (${formatMod(dexMod)}), CON ${a.con || 10} (${formatMod(conMod)}), INT ${a.int || 10} (${formatMod(intMod)}), WIS ${a.wis || 10} (${formatMod(wisMod)}), CHA ${a.cha || 10} (${formatMod(chaMod)})`);
+
+    // Defenses & HP
+    const attrs = build.attributes || {};
+    let totalHp = null;
+    if (attrs.ancestryhp !== undefined && attrs.classhp !== undefined) {
+      const perLvl = (attrs.classhp || 0) + conMod + (attrs.bonushpPerLevel || 0);
+      totalHp = (attrs.ancestryhp || 0) + (perLvl * level) + (attrs.bonushp || 0);
+    }
+    const speed = (attrs.speed || 25) + (attrs.speedBonus || 0);
+    lines.push(`- **Speed:** ${speed} ft | **Hit Points:** ${totalHp ? totalHp + ' (Max)' : 'See sheet'}`);
+
+    // Saves & Perception
+    const profs = build.proficiencies || {};
+    function calcBonus(abilityMod, profRank) {
+      if (!profRank || profRank <= 0) return abilityMod;
+      return abilityMod + level + profRank;
+    }
+
+    const fortBonus = calcBonus(conMod, profs.fortitude);
+    const refBonus = calcBonus(dexMod, profs.reflex);
+    const willBonus = calcBonus(wisMod, profs.will);
+    const percBonus = calcBonus(wisMod, profs.perception);
+    lines.push(`- **Perception:** ${formatMod(percBonus)} (${getProfName(profs.perception)})`);
+    lines.push(`- **Saving Throws:** Fortitude ${formatMod(fortBonus)} (${getProfName(profs.fortitude)}), Reflex ${formatMod(refBonus)} (${getProfName(profs.reflex)}), Will ${formatMod(willBonus)} (${getProfName(profs.will)})`);
+
+    // Specials / Orders / Subclasses
+    const specials = Array.isArray(build.specials) ? build.specials : [];
+    if (specials.length > 0) {
+      lines.push(`- **Special Features / Subclasses:** ${specials.join(', ')}`);
+    }
+
+    // --- SPELLCASTING SECTION (PATHBUILDER GROUND TRUTH) ---
+    lines.push(`\n### SPELLCASTING & PREPARED SPELLS (FROM PATHBUILDER)`);
+    lines.push(`> [!IMPORTANT]`);
+    lines.push(`> Ground Truth: For prepared casters (Druids, Clerics, Wizards, Witches), ONLY the spells explicitly listed under Prepared Spells below are available to cast today. Do NOT assume, infer, or hallucinate other spells from general class lists unless the player specifically asks what they could prepare on a future day.`);
+
+    const casters = Array.isArray(build.spellCasters) ? build.spellCasters : [];
+    let hasCasting = false;
+
+    casters.forEach(caster => {
+      hasCasting = true;
+      const cName = caster.name || "Spellcaster";
+      const tradition = caster.magicTradition ? (caster.magicTradition.charAt(0).toUpperCase() + caster.magicTradition.slice(1)) : "Primal";
+      const castType = caster.spellcastingType ? (caster.spellcastingType.charAt(0).toUpperCase() + caster.spellcastingType.slice(1)) : "Prepared";
+      const profRank = getProfName(caster.proficiency);
+      const keyAb = (caster.ability || 'wis').toLowerCase();
+      const abMod = mods[keyAb] !== undefined ? mods[keyAb] : wisMod;
+      
+      let dcStr = "";
+      if (caster.proficiency > 0) {
+        const spellAtk = abMod + level + caster.proficiency;
+        const spellDc = 10 + spellAtk;
+        dcStr = ` | **Spell Attack:** ${formatMod(spellAtk)} | **Spell DC:** ${spellDc}`;
+      }
+
+      lines.push(`\n#### ${cName} (${tradition} Tradition, ${castType} Casting)`);
+      lines.push(`- **Proficiency:** ${profRank}${dcStr}`);
+
+      const spellsByLevel = Array.isArray(caster.spells) ? caster.spells : [];
+      spellsByLevel.sort((a, b) => (a.spellLevel || 0) - (b.spellLevel || 0));
+
+      let spellFound = false;
+      spellsByLevel.forEach(entry => {
+        const lvl = entry.spellLevel || 0;
+        let list = Array.isArray(entry.list) ? entry.list.filter(Boolean) : [];
+        if (list.length === 0 && Array.isArray(caster.prepared)) {
+          list = caster.prepared.filter(p => p && p.spellLevel === lvl).map(p => p.name || p).filter(Boolean);
+        }
+        list = list.map(s => typeof s === 'string' ? s : s?.name || JSON.stringify(s)).filter(Boolean);
+        
+        if (list.length > 0) {
+          spellFound = true;
+          const rankLabel = lvl === 0 ? "Cantrips (Rank 0 - Cast at Will)" : `Rank ${lvl} Spells (Prepared Slots)`;
+          lines.push(`- **${rankLabel}:** ${list.join(', ')}`);
+        }
+      });
+
+      if (!spellFound) {
+        lines.push(`- *No spells prepared in this slot in Pathbuilder.*`);
+      }
+    });
+
+    // --- FOCUS SPELLS & FOCUS POOL ---
+    let focusPool = build.focusPoints || 0;
+    const focusSpells = [];
+    const focusCantrips = [];
+
+    function extractFocus(obj) {
+      if (!obj || typeof obj !== 'object') return;
+      if (Array.isArray(obj.focusSpells)) {
+        focusSpells.push(...obj.focusSpells.map(s => typeof s === 'string' ? s : s?.name || String(s)).filter(Boolean));
+      }
+      if (Array.isArray(obj.focusCantrips)) {
+        focusCantrips.push(...obj.focusCantrips.map(s => typeof s === 'string' ? s : s?.name || String(s)).filter(Boolean));
+      }
+      for (const k of Object.keys(obj)) {
+        if (k !== 'focusSpells' && k !== 'focusCantrips' && typeof obj[k] === 'object') {
+          extractFocus(obj[k]);
+        }
+      }
+    }
+
+    if (build.focus) extractFocus(build.focus);
+    if (build.spellCasters) extractFocus(build.spellCasters);
+
+    const uniqueFocusSpells = [...new Set(focusSpells)];
+    const uniqueFocusCantrips = [...new Set(focusCantrips)];
+
+    if (focusPool > 0 || uniqueFocusSpells.length > 0 || uniqueFocusCantrips.length > 0) {
+      hasCasting = true;
+      lines.push(`\n#### Focus Spells & Focus Pool`);
+      lines.push(`- **Focus Points:** ${focusPool || 1} Point(s)`);
+      if (uniqueFocusCantrips.length > 0) {
+        lines.push(`- **Focus Cantrips:** ${uniqueFocusCantrips.join(', ')}`);
+      }
+      if (uniqueFocusSpells.length > 0) {
+        lines.push(`- **Focus Spells (Costs 1 Focus Point each):** ${uniqueFocusSpells.join(', ')}`);
+      }
+    }
+
+    // --- INNATE SPELLS & RITUALS ---
+    const rituals = Array.isArray(build.rituals) ? build.rituals.filter(Boolean) : [];
+    if (rituals.length > 0) {
+      lines.push(`\n#### Rituals Known`);
+      lines.push(`- ${rituals.join(', ')}`);
+    }
+
+    if (!hasCasting) {
+      lines.push(`- *Non-spellcaster (no active spellcasting slots or focus pools).*`);
+    }
+
+    // --- FEATS ---
+    const feats = Array.isArray(build.feats) ? build.feats : [];
+    if (feats.length > 0) {
+      lines.push(`\n### Feats & Abilities`);
+      const featStrings = feats.map(f => {
+        if (Array.isArray(f)) {
+          const featName = f[0];
+          const extra = f[1] ? ` (${f[1]})` : "";
+          const fType = f[2] ? ` [${f[2]}]` : "";
+          return `${featName}${extra}${fType}`;
+        } else if (f && typeof f === 'object') {
+          return f.name || JSON.stringify(f);
+        }
+        return String(f);
+      });
+      lines.push(featStrings.join('; '));
+    }
+
+    // --- WEAPONS, ARMOR & EQUIPMENT ---
+    lines.push(`\n### Carried Weapons, Armor & Magic Items`);
+    const weapons = Array.isArray(build.weapons) ? build.weapons.map(w => w.name || w).filter(Boolean) : [];
+    if (weapons.length > 0) lines.push(`- **Weapons:** ${weapons.join(', ')}`);
+    
+    const armor = Array.isArray(build.armor) ? build.armor.map(a => a.name || a).filter(Boolean) : [];
+    if (armor.length > 0) lines.push(`- **Armor:** ${armor.join(', ')}`);
+
+    const equipment = Array.isArray(build.equipment) ? build.equipment.map(e => {
+      if (Array.isArray(e)) return `${e[0]} (x${e[1] || 1})`;
+      if (e && typeof e === 'object') return `${e.name || 'Item'} (x${e.qty || 1})`;
+      return String(e);
+    }).filter(Boolean) : [];
+    if (equipment.length > 0) lines.push(`- **Equipment & Carried Items (incl. Scrolls/Wands):** ${equipment.join(', ')}`);
+
+    return lines.join('\n');
+  }
+
   async function fetchContexts() {
     const now = Date.now();
     if (now - lastSynced < 600000) {
@@ -855,8 +1076,9 @@ document.addEventListener('DOMContentLoaded', async () => {
           } else {
             const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
             const json = await res.json();
-            // Use compact JSON to prevent token bloat and timeout delays
-            chars.push(JSON.stringify(json));
+            // Parse Pathbuilder JSON into structured, ground-truth markdown
+            const parsedMd = parsePathbuilderCharacter(json);
+            chars.push(parsedMd);
           }
         } catch(e) {
           console.error('Error fetching character data for ' + url, e);
@@ -1093,15 +1315,32 @@ Example: ["core", "campaign", "chars"]`;
       }
 
       const sysName = (data.gameSystem || 'pf2e') === 'pf2e' ? 'Pathfinder 2e' : 'D&D 5e';
-      const systemInstruction = `You are Stark, an AI Game Master assistant for a ${sysName} campaign. 
-Use the provided context to ground your mechanics, but you are highly encouraged to synthesize this information, make logical inferences, and offer strategic advice/recommendations to the player based on ${sysName} rules.
-CRITICAL INSTRUCTION: Do NOT use any emojis in your responses. Keep the tone serious and professional.
-The context below contains extracted relevant paragraphs from ${sysName} rulebooks, the campaign notes, and the players' character sheets.
+      const systemInstruction = `You are Stark, an expert AI Rules Lawyer and Game Master assistant for a ${sysName} campaign.
+CRITICAL INSTRUCTION: Do NOT use any emojis in your responses. Keep the tone serious, direct, and professional.
+
+--- STRICT GROUNDING & CHARACTER INTEGRITY RULES ---
+1. ABSOLUTE CHARACTER GROUND TRUTH:
+   - The character sheets below reflect the exact, authoritative state of the characters exported from Pathbuilder (or D&D Beyond). Treat them as immutable ground truth during active play.
+   - Do NOT invent, assume, infer, or hallucinate stats, feats, abilities, weapons, items, or spells that are not explicitly present on the character sheet.
+
+2. SPELLCASTING & PREPARED SPELLS (ZERO HALLUCINATION):
+   - For prepared spellcasters (such as Druids, Clerics, Wizards, and Witches): In ${sysName}, prepared casters can ONLY cast the specific spells they have currently prepared in their spell slots for the day (plus their cantrips, focus spells, and items like scrolls/wands).
+   - Even though a Druid has access to the broad Primal spell list during daily morning preparations, they CANNOT cast any unprepared spell during the adventuring day.
+   - NEVER tell a player they can cast, have, or know a spell unless it is explicitly listed in their character sheet's Prepared Spells, Cantrips, Focus Spells, or carried equipment.
+   - If a player asks "What spells do I have?", "Can I cast [Spell]?", or asks for tactical options in an encounter: check their exact prepared list. If a spell is NOT prepared or known, state clearly: "You do not currently have [Spell] prepared in Pathbuilder for today. Your prepared spells are: [List]. (You could prepare it during your next daily preparation if it is on your spell list)."
+   - Clearly distinguish between:
+     * Cantrips (Rank 0): Cast at will, no spell slot cost.
+     * Ranked Prepared Spells: Cast using their daily prepared spell slots.
+     * Focus Spells: Cost 1 Focus Point from the character's Focus Pool (e.g. Wild Shape, Heal Animal, Tempest Surge). They do not use standard spell slots.
+
+3. RELEVANT RULEBOOK EXCERPTS VS CHARACTER SHEETS:
+   - The "RELEVANT RULEBOOK EXCERPTS" section provides general rule definitions, spell mechanics (actions, range, saving throws, effects), and conditions from the rulebooks.
+   - EXCERPTS ARE FOR RULES REFERENCE ONLY. They are NOT the player's character sheet or spellbook! Never assume a player has, knows, or can cast a spell simply because it appears in the rulebook excerpts.
 
 --- CAMPAIGN NOTES ---
 ${notesText}
 
---- CHARACTER SHEETS ---
+--- CHARACTER SHEETS (GROUND TRUTH FROM PATHBUILDER) ---
 ${charactersText}
 
 --- RELEVANT RULEBOOK EXCERPTS ---

@@ -1,7 +1,7 @@
 # Stark To-Do List
 
 ## High Priority
-- [ ] Fix spell hallucinations for prepared/spontaneous casters (e.g., Druid): Stark hallucinates like wild regarding spells. Spec/ground responses strictly to what is available and prepared in the character sheet (Pathbuilder JSON / character export) rather than guessing or conflating full spell lists.
+- [x] Fix spell hallucinations for prepared/spontaneous casters (e.g., Druid): Stark hallucinates like wild regarding spells. Spec/ground responses strictly to what is available and prepared in the character sheet (Pathbuilder JSON / character export) rather than guessing or conflating full spell lists.
 - [ ] Implement D&D 5e mechanics (SRD JSON data).
 - [ ] Implement D&D Beyond character parser.
 - [ ] Add Game System toggle (PF2e vs D&D 5e) to Settings UI.
