@@ -1360,6 +1360,11 @@ CRITICAL INSTRUCTION: Never use or mention meta terms like "Mode A", "Mode B", "
    - D. CONTEXT-AWARE COMPARISON:
      * If a character sheet is loaded below, reference what the character already has: point out synergies with their existing feats/stats, note any glaring gaps (such as lacking a good reaction or out-of-combat heal), and suggest exact swaps or additions.
 
+   - E. PATHBUILDER & REMASTER COMPATIBILITY:
+     * Pathbuilder 2e operates primarily on the Pathfinder 2e Remaster (Player Core 1 & Player Core 2).
+     * Always prioritize current Remaster terminology and spell names (e.g., Courageous Anthem instead of Inspire Courage, Sure Strike instead of True Strike, Translocate instead of Dimension Door, Runic Weapon instead of Magic Weapon, Cleanse Affliction instead of Remove Disease/Curse, Off-Guard instead of Flat-Footed, and Spell Rank instead of Spell Level).
+     * When recommending an option that was renamed in the Remaster, mention the legacy name in parentheses (e.g., "Courageous Anthem (formerly Inspire Courage)") so players can effortlessly locate it in Pathbuilder whether using legacy or Remaster search.
+
 --- CAMPAIGN NOTES ---
 ${notesText}
 
