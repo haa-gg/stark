@@ -246,16 +246,16 @@ document.addEventListener('DOMContentLoaded', async () => {
             // Fetch their existing profile from Supabase
             const profile = await window.supabase.getProfile(userId);
             if (profile) {
-              const existingLocal = await chrome.storage.sync.get(['apiKey', 'providerConfigs', 'routingMode']);
+              const existingLocal = await chrome.storage.sync.get(['apiKey', 'providerConfigs', 'routingMode', 'pbUrls']);
               const localConfigs = existingLocal.providerConfigs || {};
               const cloudConfigs = profile.provider_configs || {};
               const mergedConfigs = {
                 openrouter: {
-                  key: localConfigs.openrouter?.key || '',
+                  key: localConfigs.openrouter?.key || cloudConfigs.openrouter?.key || '',
                   model: cloudConfigs.openrouter?.model || localConfigs.openrouter?.model || 'nvidia/nemotron-3.5-lightning:free'
                 },
                 groq: {
-                  key: localConfigs.groq?.key || '',
+                  key: localConfigs.groq?.key || cloudConfigs.groq?.key || '',
                   model: cloudConfigs.groq?.model || localConfigs.groq?.model || 'llama-3.3-70b-versatile'
                 },
                 local: {
@@ -263,16 +263,59 @@ document.addEventListener('DOMContentLoaded', async () => {
                   model: cloudConfigs.local?.model || localConfigs.local?.model || 'local-model'
                 }
               };
+
+              const rawCampaigns = profile.campaigns || {};
+              const normCampaigns = {};
+              let activeCampName = profile.active_campaign || 'Default Campaign';
+
+              for (const [cName, cData] of Object.entries(rawCampaigns)) {
+                if (Array.isArray(cData)) {
+                  normCampaigns[cName] = { urls: cData, gameSystem: 'pf2e', pbUrls: '' };
+                } else if (cData && typeof cData === 'object') {
+                  normCampaigns[cName] = {
+                    urls: Array.isArray(cData.urls) ? cData.urls : [],
+                    gameSystem: cData.gameSystem || 'pf2e',
+                    pbUrls: cData.pbUrls || cData.pb_urls || cData.characterUrls || ''
+                  };
+                }
+              }
+
+              if (Object.keys(normCampaigns).length === 0) {
+                normCampaigns['Default Campaign'] = { urls: [], gameSystem: 'pf2e', pbUrls: '' };
+              }
+              if (!normCampaigns[activeCampName]) {
+                activeCampName = Object.keys(normCampaigns)[0];
+              }
+
+              // Resolve pbUrls from active campaign, fallback to other campaigns, or profile pb_urls/pbUrls
+              let resolvedPbUrls = normCampaigns[activeCampName]?.pbUrls || '';
+              if (!resolvedPbUrls) {
+                for (const c of Object.values(normCampaigns)) {
+                  if (c.pbUrls) {
+                    resolvedPbUrls = c.pbUrls;
+                    break;
+                  }
+                }
+              }
+              if (!resolvedPbUrls && profile.pb_urls) resolvedPbUrls = profile.pb_urls;
+              if (!resolvedPbUrls && profile.pbUrls) resolvedPbUrls = profile.pbUrls;
+              if (!resolvedPbUrls && existingLocal.pbUrls) resolvedPbUrls = existingLocal.pbUrls;
+
+              if (normCampaigns[activeCampName] && !normCampaigns[activeCampName].pbUrls && resolvedPbUrls) {
+                normCampaigns[activeCampName].pbUrls = resolvedPbUrls;
+              }
+
               const toSave = {
-                apiKey: existingLocal.apiKey || '',
+                apiKey: existingLocal.apiKey || profile.api_key || '',
                 providerOrder: profile.provider_order || ['gemini', 'openrouter', 'groq', 'local'],
                 providerConfigs: mergedConfigs,
-                campaigns: profile.campaigns || {},
-                activeCampaign: profile.active_campaign || 'Default Campaign',
+                campaigns: normCampaigns,
+                activeCampaign: activeCampName,
+                pbUrls: resolvedPbUrls,
                 onboardingComplete: true
               };
               if (profile.routing_mode) toSave.routingMode = profile.routing_mode;
-              // Populate local storage with cloud data (API keys stay strictly in chrome.storage.sync)
+              // Populate storage with cloud data (restores API keys and campaign data across machines)
               await chrome.storage.sync.set(toSave);
             } else {
               chrome.storage.sync.set({ onboardingComplete: true });
@@ -454,6 +497,10 @@ document.addEventListener('DOMContentLoaded', async () => {
           gameSystem: data.gameSystem || 'pf2e',
           pbUrls: data.pbUrls || ''
         };
+      } else if (campaigns[key] && typeof campaigns[key] === 'object') {
+        if (!campaigns[key].pbUrls && data.pbUrls) {
+          campaigns[key].pbUrls = data.pbUrls;
+        }
       }
     }
   } else {
@@ -634,7 +681,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   const activeCampData = campaigns[activeCampaign] || {};
-  pbUrlsInput.value = activeCampData.pbUrls !== undefined ? activeCampData.pbUrls : (data.pbUrls || '');
+  pbUrlsInput.value = (activeCampData.pbUrls && activeCampData.pbUrls.trim()) 
+    ? activeCampData.pbUrls.trim() 
+    : (data.pbUrls || '');
   
   gameSystemSelect.value = activeCampData.gameSystem !== undefined ? activeCampData.gameSystem : (data.gameSystem || 'pf2e');
   function updateCharacterUI() {
@@ -645,7 +694,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   updateCharacterUI();
   if (gameSystemSelect) gameSystemSelect.addEventListener('change', updateCharacterUI);
 
-  if (data.apiKey || (data.providerOrder && data.providerOrder[0] === 'local')) {
+  const hasValidConfig = data.apiKey || 
+    (data.providerConfigs && (data.providerConfigs.openrouter?.key || data.providerConfigs.groq?.key)) || 
+    (data.providerOrder && data.providerOrder[0] === 'local');
+
+  if (hasValidConfig) {
     if (loginView) loginView.classList.add('hidden');
     settingsView.classList.add('hidden');
     chatView.classList.remove('hidden');
@@ -678,7 +731,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  saveBtn.addEventListener('click', () => {
+  saveBtn.addEventListener('click', async () => {
     const currentOrder = Array.from(document.querySelectorAll('.provider-box')).map(box => box.dataset.provider);
     const newConfigs = {
       openrouter: {
@@ -709,22 +762,25 @@ document.addEventListener('DOMContentLoaded', async () => {
         fontScale: fontScaleSlider ? parseInt(fontScaleSlider.value, 10) : 100
       };
 
-      // Push non-sensitive settings to Supabase if logged in (API keys stay strictly in chrome.storage.sync)
-      const userId = window.supabase.getUserId();
-      if (userId) {
-        const sanitizedCloudConfigs = {
-          openrouter: { model: newConfigs.openrouter.model },
-          groq: { model: newConfigs.groq.model },
-          local: { url: newConfigs.local.url, model: newConfigs.local.model }
-        };
-        window.supabase.upsertProfile(userId, {
-          api_key: null,
-          provider_order: payloadToSave.providerOrder,
-          provider_configs: sanitizedCloudConfigs,
-          routing_mode: payloadToSave.routingMode,
-          campaigns: payloadToSave.campaigns,
-          active_campaign: payloadToSave.activeCampaign
-        }).catch(e => console.error("Failed to sync to Supabase:", e));
+      if (payloadToSave.campaigns && payloadToSave.campaigns[activeCampaign]) {
+        payloadToSave.campaigns[activeCampaign].pbUrls = pbUrlsInput.value.trim();
+        payloadToSave.campaigns[activeCampaign].gameSystem = gameSystemSelect.value;
+      }
+
+      // Push settings and API keys to Supabase if logged in so they transfer between machines
+      if (window.supabase) {
+        if (window.supabase.sessionReady) await window.supabase.sessionReady;
+        const userId = window.supabase.getUserId();
+        if (userId) {
+          window.supabase.upsertProfile(userId, {
+            api_key: payloadToSave.apiKey,
+            provider_order: payloadToSave.providerOrder,
+            provider_configs: payloadToSave.providerConfigs,
+            routing_mode: payloadToSave.routingMode,
+            campaigns: payloadToSave.campaigns,
+            active_campaign: payloadToSave.activeCampaign
+          }).catch(e => console.error("Failed to sync to Supabase:", e));
+        }
       }
 
       chrome.storage.sync.set(payloadToSave, () => {
@@ -1017,7 +1073,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       return { notesText: cachedNotesText, charactersText: cachedCharactersText };
     }
 
-    const data = await chrome.storage.sync.get(['campaigns', 'activeCampaign', 'pbUrls']);
+    const data = await chrome.storage.sync.get(['campaigns', 'activeCampaign', 'pbUrls', 'gameSystem']);
     let tempNotes = "No campaign notes provided.";
     let tempChars = "No character sheets provided.";
 
@@ -1064,10 +1120,17 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     }
 
-    if (data.pbUrls) {
-      const urls = data.pbUrls.split('\n').map(u => u.trim()).filter(u => u);
+    const activeCamp = (data.campaigns && data.activeCampaign && data.campaigns[data.activeCampaign]) 
+      ? data.campaigns[data.activeCampaign] 
+      : null;
+    const activePbUrls = (activeCamp && activeCamp.pbUrls && activeCamp.pbUrls.trim()) 
+      ? activeCamp.pbUrls.trim() 
+      : (data.pbUrls || '');
+
+    if (activePbUrls) {
+      const urls = activePbUrls.split('\n').map(u => u.trim()).filter(u => u);
       let chars = [];
-      const activeSys = data.gameSystem || 'pf2e';
+      const activeSys = activeCamp?.gameSystem || data.gameSystem || 'pf2e';
       
       for (const url of urls) {
         try {

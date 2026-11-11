@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Stark: Your Pathfinder 2e Rules Lawyer",
-  "version": "1.3.1",
+  "version": "1.3.2",
   "description": "Your Pathfinder 2e assistant- Get questions answered about game mechanics, campaign notes, and character info",
   "icons": {
     "16": "icons/icon16.png",
