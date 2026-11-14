@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Privacy Policy — Stark</title>
+  <link rel="icon" type="image/png" href="assets/icon128.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header>
+    <div class="container nav">
+      <a class="brand" href="./">
+        <img src="assets/icon128.png" alt="Stark logo">
+        <span>Stark</span>
+      </a>
+      <nav class="nav-links">
+        <a href="./">Home</a>
+        <a href="privacy.html" class="active">Privacy Policy</a>
+        <a href="terms.html">Terms of Service</a>
+        <a href="https://github.com/haa-gg/stark" target="_blank" rel="noopener">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <div class="doc-box">
+      <h1>Privacy Policy for Stark</h1>
+      <p class="meta">Last updated: November 14, 2026</p>
+      <p>
+        <strong>Stark</strong> ("Stark AI", "we", "our") is a Chrome browser extension designed to assist tabletop roleplayers running Pathfinder 2e campaigns with rules lookups, campaign notes search, and character sheet integration.
+      </p>
+      <p>
+        We are committed to user privacy. Stark operates under a <strong>local-first</strong> and <strong>minimal-data</strong> model.
+      </p>
+
+      <h2>1. Information We Access and How It Is Used</h2>
+      <p>Stark operates within your browser and only accesses data necessary to provide its core features:</p>
+      <ul>
+        <li><strong>AI Provider API Keys:</strong> If you choose to use cloud AI providers (such as Google Gemini, OpenRouter, or Groq), your API keys are stored in Chrome extension storage on your device. When you submit a query, keys are sent directly to your selected AI provider to authenticate requests.</li>
+        <li><strong>Optional Cloud Profile Sync:</strong> If you optionally choose to sign in to sync your configuration across devices, your campaign settings, character URLs, provider order, preferences, and configured API keys are synchronized to your private user record on our database (Supabase) so they transfer across machines. If you do not sign in, all configuration data remains strictly in your browser storage.</li>
+        <li><strong>Google Docs (Campaign Notes):</strong> If you connect your Google account to sync private or multi-tab campaign notes, Stark requests read-only access (<code>https://www.googleapis.com/auth/documents.readonly</code>) via Google's official OAuth 2.0 flow (<code>chrome.identity</code>). Stark retrieves only the text content of the specific Google Docs URLs you configure, solely to build context for answering your campaign questions. Stark never modifies, deletes, or lists your other Google Drive files.</li>
+        <li><strong>Pathbuilder 2e Character Data:</strong> If you provide Pathbuilder 2e JSON export URLs, Stark fetches those character stats, feats, spells, and equipment solely to answer character-specific gameplay questions.</li>
+        <li><strong>Local Language Models:</strong> If you configure a local LLM server (such as Ollama or LM Studio), your queries and context remain entirely on your local machine (<code>localhost</code>).</li>
+      </ul>
+
+      <h2>2. Data Storage and Retention</h2>
+      <ul>
+        <li><strong>No Tracking or Analytics:</strong> Stark does not run analytics, advertising SDKs, telemetry, or user tracking scripts.</li>
+        <li><strong>Browser Storage by Default:</strong> Settings, campaign names, document URLs, and OAuth tokens are stored inside Chrome's extension storage on your device.</li>
+        <li><strong>Optional Cloud Sync Storage:</strong> For signed-in users, profile settings and campaign configurations are stored on Supabase using Row Level Security (RLS) scoped to your authenticated account.</li>
+        <li><strong>Session Data:</strong> Retrieved Google Docs text and character sheet summaries are cached briefly in browser memory during your active session and can be cleared or disconnected at any time in Stark's Settings.</li>
+      </ul>
+
+      <h2>3. Third-Party Services and Google API Limited Use</h2>
+      <ul>
+        <li>When you ask a question in Stark, relevant context snippets (rules excerpts, campaign note text, and character info) along with your prompt are sent directly from your browser to your selected AI provider (Google Gemini, OpenRouter, Groq, or your localhost LLM) to generate a response.</li>
+        <li>Your interactions with third-party AI providers are subject to their respective privacy policies and terms of service.</li>
+        <li><strong>Google API Services User Data Policy Compliance:</strong> Stark's use and transfer to any other app of information received from Google APIs will adhere to the <a href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank" rel="noopener">Google API Services User Data Policy</a>, including the Limited Use requirements.</li>
+        <li>Stark does <strong>not</strong> use Google Workspace or Google Docs API data to train generalized AI/ML models, and does not sell, rent, or transfer your Google user data for advertising or data-brokering purposes.</li>
+      </ul>
+
+      <h2>4. Security and Revoking Access</h2>
+      <ul>
+        <li>Google authentication uses Google's OAuth 2.0 WebAuthFlow. Stark never sees or stores your Google password.</li>
+        <li>You can click <strong>Disconnect</strong> in Stark's Settings at any time to clear your local OAuth token, or revoke Stark's permissions directly from your <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener">Google Account Security Settings</a>.</li>
+      </ul>
+
+      <h2>5. Contact</h2>
+      <p>
+        If you have questions, deletion requests, or privacy inquiries regarding Stark, please contact <a href="mailto:glendon.gengel@gmail.com">glendon.gengel@gmail.com</a> or open an issue on <a href="https://github.com/haa-gg/stark/issues" target="_blank" rel="noopener">GitHub</a>.
+      </p>
+    </div>
+  </main>
+
+  <footer>
+    <div class="container footer-inner">
+      <div>Stark — Pathfinder 2e AI Assistant</div>
+      <div class="footer-links">
+        <a href="./">Home</a>
+        <a href="privacy.html">Privacy Policy</a>
+        <a href="terms.html">Terms of Service</a>
+        <a href="mailto:glendon.gengel@gmail.com">Support</a>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>

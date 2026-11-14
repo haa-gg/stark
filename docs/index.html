@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Stark — Pathfinder 2e AI Assistant</title>
+  <meta name="description" content="Stark is a Chrome Side Panel extension for Pathfinder 2e players and Game Masters with local rules lookup, Pathbuilder 2e character integration, and Google Docs campaign notes sync.">
+  <link rel="icon" type="image/png" href="assets/icon128.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header>
+    <div class="container nav">
+      <a class="brand" href="./">
+        <img src="assets/icon128.png" alt="Stark logo">
+        <span>Stark</span>
+      </a>
+      <nav class="nav-links">
+        <a href="./" class="active">Home</a>
+        <a href="privacy.html">Privacy Policy</a>
+        <a href="terms.html">Terms of Service</a>
+        <a href="https://github.com/haa-gg/stark" target="_blank" rel="noopener">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="hero">
+      <img class="hero-icon" src="assets/icon128.png" alt="Stark purple crystal icon">
+      <h1>Stark: Your Pathfinder 2e Rules Lawyer</h1>
+      <p class="subtitle">
+        A fast, local-first Chrome Side Panel companion for Pathfinder 2e Game Masters and players — combining bundled rules lookup, Pathbuilder 2e character data, and your Google Docs campaign notes.
+      </p>
+      <div class="cta-row">
+        <a class="btn btn-primary" href="https://chromewebstore.google.com/detail/stark-pathfinder-2e-ai/egkcdliplfbfkbpjhcoefafabohgifpb" target="_blank" rel="noopener">
+          Install from Chrome Web Store
+        </a>
+        <a class="btn btn-secondary" href="https://github.com/haa-gg/stark" target="_blank" rel="noopener">
+          View Source on GitHub
+        </a>
+      </div>
+    </section>
+
+    <section>
+      <div class="grid">
+        <article class="card">
+          <h3>Bundled PF2e Rules &amp; Build Guides</h3>
+          <p>Searches locally bundled Pathfinder 2e Remaster rules, spells, feats, conditions, actions, and curated class build guides directly inside your browser.</p>
+        </article>
+        <article class="card">
+          <h3>Google Docs Campaign Notes</h3>
+          <p>Optional read-only Google Docs integration (<code>documents.readonly</code>) lets Stark read all tabs of the campaign Google Docs URLs you configure to answer lore and session questions.</p>
+        </article>
+        <article class="card">
+          <h3>Pathbuilder 2e Character Sheets</h3>
+          <p>Paste Pathbuilder 2e JSON export URLs so Stark understands your party's exact stats, prepared/known spells, feats, skills, and equipment.</p>
+        </article>
+        <article class="card">
+          <h3>Bring Your Own AI Provider</h3>
+          <p>Configure a custom fallback stack using Google Gemini, OpenRouter, Groq, or a private local LLM server (Ollama / LM Studio).</p>
+        </article>
+        <article class="card">
+          <h3>Multi-Campaign Profiles</h3>
+          <p>Switch between campaigns effortlessly, with optional Supabase profile sync to carry your settings and URLs across machines.</p>
+        </article>
+        <article class="card">
+          <h3>Privacy &amp; Limited Use</h3>
+          <p>No ads, no analytics, and no data selling. Google Docs content is fetched read-only solely to build context for the questions you ask. <a href="privacy.html">Read our Privacy Policy</a>.</p>
+        </article>
+      </div>
+    </section>
+
+    <section>
+      <div class="screenshots">
+        <figure>
+          <img src="assets/screenshot-chat.jpg" alt="Stark side panel chat interface">
+          <figcaption>Ask rules, spell, or campaign lore questions right next to your VTT or notes.</figcaption>
+        </figure>
+        <figure>
+          <img src="assets/screenshot-settings.jpg" alt="Stark settings and campaign configuration">
+          <figcaption>Connect Google Docs campaign notes, Pathbuilder character URLs, and AI providers.</figcaption>
+        </figure>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="container footer-inner">
+      <div>Stark — Open-source Pathfinder 2e Chrome Extension</div>
+      <div class="footer-links">
+        <a href="privacy.html">Privacy Policy</a>
+        <a href="terms.html">Terms of Service</a>
+        <a href="mailto:glendon.gengel@gmail.com">Support</a>
+        <a href="https://github.com/haa-gg/stark" target="_blank" rel="noopener">GitHub</a>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>
