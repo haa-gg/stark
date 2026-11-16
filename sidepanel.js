@@ -1217,6 +1217,171 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
+  const DEFAULT_GEMINI_MODELS = ['gemini-flash-latest', 'gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-2.0-flash'];
+  let cachedGeminiModels = null;
+
+  function buildGeminiGenerationConfig(modelName, extraConfig = {}, omitThinking = false) {
+    const genCfg = { ...extraConfig };
+    if (!omitThinking) {
+      if (/^gemini-2\.5/i.test(modelName)) {
+        genCfg.thinkingConfig = { thinkingBudget: 0 };
+      } else if (/^gemini-[34]|flash-latest/i.test(modelName)) {
+        genCfg.thinkingConfig = { thinkingLevel: 'minimal' };
+      }
+    }
+    return genCfg;
+  }
+
+  async function discoverGeminiFlashModels(apiKey) {
+    try {
+      const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models', {
+        headers: { 'x-goog-api-key': apiKey },
+        signal: AbortSignal.timeout(8000)
+      });
+      if (!res.ok) return [];
+      const data = await res.json();
+      if (!Array.isArray(data.models)) return [];
+
+      return data.models
+        .filter(m =>
+          Array.isArray(m.supportedGenerationMethods) &&
+          m.supportedGenerationMethods.includes('generateContent') &&
+          /flash/i.test(m.name) &&
+          !/(tts|image|audio|live|exp|1\.0|1\.5)/i.test(m.name)
+        )
+        .map(m => m.name.replace(/^models\//, ''))
+        .sort((a, b) => {
+          const aLite = /lite/i.test(a) ? 1 : 0;
+          const bLite = /lite/i.test(b) ? 1 : 0;
+          if (aLite !== bLite) return aLite - bLite;
+          return b.localeCompare(a, undefined, { numeric: true });
+        });
+    } catch (err) {
+      console.warn('ListModels discovery failed:', err.message);
+      return [];
+    }
+  }
+
+  async function callGeminiWithFallback({ apiKey, buildBaseBody, extraGenConfig = {}, timeoutMs = 45000, maxRetries = 2, onStatus }) {
+    const initialList = cachedGeminiModels ? [...cachedGeminiModels] : [...DEFAULT_GEMINI_MODELS];
+    const attempted = new Set();
+    let queue = [...initialList];
+    let discovered = false;
+    let lastErr = null;
+
+    while (queue.length > 0) {
+      const geminiModel = queue.shift();
+      if (attempted.has(geminiModel)) continue;
+      attempted.add(geminiModel);
+
+      let delay = 1500;
+      let retries = maxRetries;
+      let omitThinking = false;
+
+      while (retries > 0) {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(
+          () => controller.abort(new Error(`Gemini (${geminiModel}) took longer than ${Math.round(timeoutMs / 1000)}s to respond.`)),
+          timeoutMs
+        );
+
+        let json;
+        try {
+          const baseBody = buildBaseBody();
+          baseBody.generationConfig = buildGeminiGenerationConfig(geminiModel, extraGenConfig, omitThinking);
+
+          const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-goog-api-key': apiKey
+            },
+            body: JSON.stringify(baseBody),
+            signal: controller.signal
+          });
+          json = await res.json();
+          if (!res.ok && !json?.error) {
+            throw new Error(`Gemini HTTP ${res.status}`);
+          }
+        } catch (fetchErr) {
+          clearTimeout(timeoutId);
+          console.warn(`Gemini (${geminiModel}) request failed: ${fetchErr.message}`);
+          lastErr = fetchErr;
+          break;
+        } finally {
+          clearTimeout(timeoutId);
+        }
+
+        if (json && json.error) {
+          const errCode = json.error.code;
+          const errMsg = json.error.message || JSON.stringify(json.error);
+
+          // Invalid API key / permissions: fail fast instead of masking with fallback 404s
+          if (errCode === 401 || errCode === 403 || (errCode === 400 && /api[_ ]?key|permission/i.test(errMsg))) {
+            throw new Error(errMsg);
+          }
+
+          // Model rejects thinkingConfig (budget/level): retry same model cleanly without thinkingConfig
+          if (errCode === 400 && /thinking|budget|level|unknown field/i.test(errMsg) && !omitThinking) {
+            console.warn(`Model ${geminiModel} rejected thinkingConfig, retrying without it...`);
+            omitThinking = true;
+            continue;
+          }
+
+          // Rate limit (429): same key shares quota, fail over to next provider immediately
+          if (errCode === 429) {
+            throw new Error("Google API rate limit exceeded. Please wait a moment or check your quota.");
+          }
+
+          // Overloaded / 503 High Demand
+          if (errCode === 503) {
+            retries--;
+            if (retries === 0) {
+              if (!lastErr) lastErr = new Error("Google API is experiencing high demand.");
+              console.warn(`${geminiModel} is overloaded (503). Trying alternative Gemini model...`);
+              break;
+            }
+            if (onStatus) onStatus(`High demand on ${geminiModel}. Retrying in ${delay / 1000}s...`);
+            await new Promise(r => setTimeout(r, delay));
+            delay *= 2;
+            continue;
+          }
+
+          // Model not found (404): try next candidate and trigger dynamic ListModels discovery once if needed
+          if (errCode === 404 || /not found/i.test(errMsg)) {
+            if (!lastErr) lastErr = new Error(errMsg);
+            console.warn(`${geminiModel} not found (404). Trying alternative Gemini model...`);
+            if (queue.length === 0 && !discovered) {
+              discovered = true;
+              const liveModels = await discoverGeminiFlashModels(apiKey);
+              for (const lm of liveModels) {
+                if (!attempted.has(lm)) queue.push(lm);
+              }
+            }
+            break;
+          }
+
+          lastErr = new Error(errMsg);
+          break;
+        }
+
+        const text = json?.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (text) {
+          cachedGeminiModels = [geminiModel, ...DEFAULT_GEMINI_MODELS.filter(m => m !== geminiModel)];
+          return { text, usageMetadata: json.usageMetadata || null, model: geminiModel };
+        }
+        if (json?.candidates?.[0]?.finishReason) {
+          lastErr = new Error(`Gemini response stopped: ${json.candidates[0].finishReason}`);
+          break;
+        }
+        lastErr = new Error("Gemini returned an empty response.");
+        break;
+      }
+    }
+
+    throw lastErr || new Error("All Gemini models failed to respond.");
+  }
+
   async function routeQuestion(text, data) {
     const prompt = `You are a routing agent for a Pathfinder 2e assistant.
 The user asked: "${text}"
@@ -1239,34 +1404,15 @@ Example: ["core", "campaign", "chars"]`;
       try {
         if (provider === 'gemini') {
           if (!cleanGeminiKey) continue;
-          const routerModels = ['gemini-2.5-flash', 'gemini-flash-latest'];
-          for (const rm of routerModels) {
-            try {
-              const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${rm}:generateContent`, {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'x-goog-api-key': cleanGeminiKey
-                },
-                body: JSON.stringify({
-                  contents: [{ role: 'user', parts: [{ text: prompt }] }],
-                  generationConfig: {
-                    responseMimeType: "application/json",
-                    thinkingConfig: { thinkingBudget: 0 }
-                  }
-                }),
-                signal: AbortSignal.timeout(8000)
-              });
-              const json = await res.json();
-              if (json.candidates?.[0]?.content?.parts?.[0]?.text) {
-                content = json.candidates[0].content.parts[0].text;
-                break;
-              }
-            } catch (err) {
-              console.warn(`Router Gemini model ${rm} failed: ${err.message}`);
-            }
-          }
-          if (content) break;
+          const result = await callGeminiWithFallback({
+            apiKey: cleanGeminiKey,
+            buildBaseBody: () => ({ contents: [{ role: 'user', parts: [{ text: prompt }] }] }),
+            extraGenConfig: { responseMimeType: "application/json" },
+            timeoutMs: 8000,
+            maxRetries: 1
+          });
+          content = result.text;
+          break;
         } else {
           const config = configs[provider] || {};
           if ((provider === 'groq' || provider === 'openrouter') && (!config.key || !config.key.trim())) {
@@ -1476,119 +1622,19 @@ ${relevantRules}
         try {
           if (provider === 'gemini') {
             loadingDiv.textContent = 'Thinking... (calling Gemini)';
-            const reqBody = {
-              system_instruction: { parts: [{ text: systemInstruction }] },
-              contents: conversationHistory,
-              generationConfig: {
-                thinkingConfig: {
-                  thinkingBudget: 0
-                }
-              }
-            };
-            
-            const geminiModels = ['gemini-2.5-flash', 'gemini-flash-latest', 'gemini-1.5-flash'];
-            let geminiLastErr = null;
-
-            for (const geminiModel of geminiModels) {
-              let delay = 1500;
-              let retries = 2;
-              let tryWithoutThinking = false;
-
-              while (retries > 0) {
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(new Error(`Gemini (${geminiModel}) took longer than 45s to respond.`)), 45000);
-
-                let res;
-                let json;
-                try {
-                  const currentReqBody = JSON.parse(JSON.stringify(reqBody));
-                  if (tryWithoutThinking && currentReqBody.generationConfig?.thinkingConfig) {
-                    delete currentReqBody.generationConfig.thinkingConfig;
-                  }
-
-                  res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent`, {
-                    method: 'POST',
-                    headers: {
-                      'Content-Type': 'application/json',
-                      'x-goog-api-key': cleanGeminiKey
-                    },
-                    body: JSON.stringify(currentReqBody),
-                    signal: controller.signal
-                  });
-                  json = await res.json();
-                } catch (fetchErr) {
-                  clearTimeout(timeoutId);
-                  console.warn(`Gemini (${geminiModel}) request failed: ${fetchErr.message}`);
-                  geminiLastErr = fetchErr;
-                  // If aborted due to timeout or network failure, break to try the next model
-                  break;
-                } finally {
-                  clearTimeout(timeoutId);
-                }
-
-                if (json && json.error) {
-                  const errCode = json.error.code;
-                  const errMsg = json.error.message || JSON.stringify(json.error);
-
-                  // 1) Model does not support thinkingConfig
-                  if (errCode === 400 && /thinkingConfig|unknown field/i.test(errMsg) && !tryWithoutThinking) {
-                    console.warn(`Model ${geminiModel} does not support thinkingConfig, retrying without it...`);
-                    tryWithoutThinking = true;
-                    continue;
-                  }
-
-                  // 2) Overloaded / 503 High Demand
-                  if (errCode === 503) {
-                    retries--;
-                    if (retries === 0) {
-                      geminiLastErr = new Error("Google API is experiencing high demand.");
-                      console.warn(`${geminiModel} is overloaded (503). Trying alternative Gemini model...`);
-                      break;
-                    }
-                    loadingDiv.textContent = `High demand on ${geminiModel}. Retrying in ${delay / 1000}s...`;
-                    await new Promise(r => setTimeout(r, delay));
-                    delay *= 2;
-                    continue;
-                  }
-
-                  // 3) Model not found (404)
-                  if (errCode === 404 || /not found/i.test(errMsg)) {
-                    geminiLastErr = new Error(errMsg);
-                    console.warn(`${geminiModel} not found (404). Trying alternative Gemini model...`);
-                    break;
-                  }
-
-                  // 4) Rate limit (429)
-                  if (errCode === 429) {
-                    geminiLastErr = new Error("Google API rate limit exceeded. Please wait a moment or check your quota.");
-                    break;
-                  }
-
-                  // Other error (auth, bad request)
-                  geminiLastErr = new Error(errMsg);
-                  break;
-                }
-
-                if (json && json.candidates && json.candidates[0]?.content?.parts?.[0]?.text) {
-                  answer = json.candidates[0].content.parts[0].text;
-                  if (json.usageMetadata && json.usageMetadata.totalTokenCount) {
-                    updateTokenMeter(json.usageMetadata.totalTokenCount);
-                  }
-                  break;
-                } else if (json && json.candidates && json.candidates[0]?.finishReason) {
-                  geminiLastErr = new Error(`Gemini response stopped: ${json.candidates[0].finishReason}`);
-                  break;
-                } else if (json) {
-                  geminiLastErr = new Error("Gemini returned an empty response.");
-                  break;
-                }
-              }
-
-              if (answer) break;
-            }
-
-            if (!answer && geminiLastErr) {
-              throw geminiLastErr;
+            const result = await callGeminiWithFallback({
+              apiKey: cleanGeminiKey,
+              buildBaseBody: () => ({
+                system_instruction: { parts: [{ text: systemInstruction }] },
+                contents: conversationHistory
+              }),
+              timeoutMs: 45000,
+              maxRetries: 2,
+              onStatus: (msg) => { loadingDiv.textContent = msg; }
+            });
+            answer = result.text;
+            if (result.usageMetadata?.totalTokenCount) {
+              updateTokenMeter(result.usageMetadata.totalTokenCount);
             }
           } else {
             // OpenAI Format (Groq, OpenRouter, Local)
